@@ -37,13 +37,15 @@
 
 # Code: browsers re-check with the server on every load (a cheap 304 when unchanged),
 # so a deploy reaches users immediately. Without this, JS/CSS were cached for 4 hours.
+# `private` matters: the zone's Browser Cache TTL (4h) overrides a plain `no-cache`
+# but leaves private responses alone.
 /*.js
-  Cache-Control: no-cache
+  Cache-Control: private, no-cache
 /*.css
-  Cache-Control: no-cache
+  Cache-Control: private, no-cache
 /*.json
-  Cache-Control: no-cache
+  Cache-Control: private, no-cache
 /
-  Cache-Control: no-cache
+  Cache-Control: private, no-cache
 /*.html
-  Cache-Control: no-cache
+  Cache-Control: private, no-cache
