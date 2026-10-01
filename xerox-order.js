@@ -2288,10 +2288,11 @@ function buildDocCard(f, i) {
     const filteredBinding = bindSelIds
         ? bindingList.filter(b => bindSelIds.includes(b.id))
         : bindingList;
-    /* "Combine" binds several files as one book — offered once there is a second file */
-    const canCombine = bindingList.length > 0 && (uploadedFiles.length > 1 || inBook);
+    /* "Combine" binds several files as one book — offered whenever there is a second
+       file, even if the shop lists no binding types (the shop then binds it at no charge) */
+    const canCombine = uploadedFiles.length > 1 || inBook;
     const bindOpts = `<option value="none">No Binding</option>` +
-        filteredBinding.map(b =>
+        (bindEnabled ? filteredBinding : []).map(b =>
             `<option value="${b.id}" ${cfg.bindingId === b.id ? 'selected' : ''}>${b.name}</option>`
         ).join('') +
         (canCombine ? `<option value="${COMBINED_BINDING}" ${inBook ? 'selected' : ''}>Combine with other files (one book)</option>` : '');
@@ -2309,13 +2310,14 @@ function buildDocCard(f, i) {
 
     // Build each option block as a keyed map, then render in admin-defined order
     const optionBlocks = {
-        color: colorEnabled ? `
+        /* Mixed is offered for any file with more than one page, whatever the paper allows */
+        color: (colorEnabled || f.pages > 1) ? `
             <div class="xo-config-group">
                 <label class="xo-config-label">Color</label>
                 <select class="xo-select" onchange="updateConfig(${i},'color',this.value)">
                     ${allowBw    ? `<option value="bw"    ${cfg.color==='bw'    ?'selected':''}>Black &amp; White</option>` : ''}
                     ${allowColor ? `<option value="color" ${cfg.color==='color' ?'selected':''}>Color</option>` : ''}
-                    ${allowBw && allowColor && f.pages > 1 ? `<option value="mixed" ${cfg.color==='mixed' ?'selected':''}>Mixed (some pages colour)</option>` : ''}
+                    ${f.pages > 1 ? `<option value="mixed" ${cfg.color==='mixed' ?'selected':''}>Mixed (some pages colour)</option>` : ''}
                 </select>
             </div>
             ${cfg.color === 'mixed' ? buildColorPagesEditor(f, i) : ''}` : '',
@@ -2338,7 +2340,7 @@ function buildDocCard(f, i) {
                 </select>
             </div>` : '',
 
-        binding: bindEnabled ? `
+        binding: (bindEnabled || canCombine) ? `
             <div class="xo-config-group">
                 <label class="xo-config-label">Binding</label>
                 <select class="xo-select" onchange="updateConfig(${i},'bindingId',this.value)">${bindOpts}</select>
@@ -2352,7 +2354,9 @@ function buildDocCard(f, i) {
     };
 
     // Render in admin-defined order (falls back to default if not set)
-    const order = paper?.optionsOrder || ['color','format','ratio','binding','lamination'];
+    const order = [...(paper?.optionsOrder || ['color','format','ratio','binding','lamination'])];
+    /* Colour (for Mixed) and Binding (for Combine) must show even if the admin's order omits them */
+    ['color', 'binding'].forEach(k => { if (!order.includes(k)) order.push(k); });
     const orderedOptions = order.map(key => optionBlocks[key] || '').join('');
 
     return `
@@ -2448,6 +2452,7 @@ function buildColorPagesEditor(f, i) {
                        placeholder="e.g. 1, 3, 5-8" onchange="setColorPages(${i}, this.value)"
                        onkeydown="if(event.key==='Enter')this.blur()">
                 <div class="xo-cp-hint">${hint}</div>
+                ${pages.length && !(f.prices.colorRate > 0) ? `<div class="xo-cp-hint"><span class="xo-cp-hint--err">This shop hasn't set a colour price for this paper, so colour pages are charged ₹0 here. The shop may ask for the difference.</span></div>` : ''}
             </div>`;
 }
 
@@ -2458,7 +2463,8 @@ function buildCombinedBookCard() {
     const book       = combinedBinding();
     const totalPages = members.reduce((s, f) => s + f.pages, 0);
     const bindOpts   = activeBindingList().map(b =>
-        `<option value="${b.id}" ${book?.id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('');
+        `<option value="${b.id}" ${book?.id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')
+        || `<option value="">Shop's own binding</option>`;
     const rows = members.map((f, n) => `
             <li class="xo-book-file">
                 <span class="xo-book-file-num">${n + 1}</span>
@@ -2493,7 +2499,7 @@ function buildCombinedBookCard() {
                 </div>
             </div>
         </div>
-        <div class="xo-book-foot">${book ? `${esc(book.name)} ₹${(book.price || 0).toFixed(2)} × ${combinedBook.copies} — charged once for the whole book` : 'This shop has no binding options'}</div>
+        <div class="xo-book-foot">${book ? `${esc(book.name)} ₹${(book.price || 0).toFixed(2)} × ${combinedBook.copies} — charged once for the whole book` : 'This shop has no binding price set — the files are bound together as one book at no extra charge'}</div>
     </div>`;
 }
 
@@ -2552,7 +2558,7 @@ window.updateConfig = function(i, key, value) {
 
         /* Snap color selection — mixed needs the paper to allow both B&W and colour */
         const colorSel = colorOpt?.selection || ['bw', 'color'];
-        const mixedOk  = f.config.color === 'mixed' && colorSel.includes('bw') && colorSel.includes('color');
+        const mixedOk  = f.config.color === 'mixed' && f.pages > 1;
         if (!mixedOk && !colorSel.includes(f.config.color)) f.config.color = colorSel[0] || 'bw';
 
         /* Snap format selection — use the panel matching the (possibly snapped) color */
