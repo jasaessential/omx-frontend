@@ -15,7 +15,7 @@ compatibility_date    = "2024-09-23"
 # Then replace <KV_NAMESPACE_ID> with the printed id.
 [[kv_namespaces]]
 binding = "CACHE"
-id      = "<KV_NAMESPACE_ID>"
+id      = "1d2b461dc30a46c396215e3811b0b28a"   # JASA_CACHE
 
 # ── R2 Bucket binding (product images) ────────────────────────
 # Create bucket: npx wrangler r2 bucket create jasa-product-images
@@ -28,6 +28,7 @@ bucket_name = "jasa-product-images"
 [vars]
 R2_PUBLIC_URL = "https://pub-35a590f6b24c49aba1b36086b8a5cc65.r2.dev"
 PAYMENT_SERVER_URL = "https://server-bc02.onrender.com"   # Render payment server (cron target)
+FIREBASE_PROJECT_ID = "jasa-essential-234f8"              # admin ID-token check (verifyAdmin)
 
 # ── Secrets (set via CLI — never commit these) ─────────────────
 # Run once before deploying:
