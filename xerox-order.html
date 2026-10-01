@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="xerox-order.css?v=20261001b">
+    <link rel="stylesheet" href="xerox-order.css?v=20261001c">
     <link rel="stylesheet" href="wallet-checkout.css?v=20260925a">
 
     <!-- PDF.js for page counting -->
@@ -19,6 +19,8 @@
                 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         }
     </script>
+    <!-- Drag-to-reorder for the "Combine files into one book" page order (touch-friendly) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <meta name="theme-color" content="#2D8CF0">
@@ -558,7 +560,7 @@
     <!-- ════ SCRIPTS ════ -->
     <script src="app.js"></script>
     <script type="module" src="auth-header.js"></script>
-    <script type="module" src="xerox-order.js?v=20261001b"></script>
+    <script type="module" src="xerox-order.js?v=20261001c"></script>
     <!-- Razorpay Checkout SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </body>

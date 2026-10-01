@@ -1290,12 +1290,13 @@ function renderStep5Docs(shopCfg) {
     xeroxConfig.lamination = shopCfg.lamination;
 
     calculatePrices(); /* prices now use shop config */
-    container.innerHTML = uploadedFiles.map((f, i) => buildDocCard(f, i)).join('') + buildCombinedBookCard();
+    container.innerHTML = buildCombinedBookCard() + uploadedFiles.map((f, i) => buildDocCard(f, i)).join('');
 
     /* Restore global config */
     xeroxConfig.paper      = saved.paper;
     xeroxConfig.binding    = saved.binding;
     xeroxConfig.lamination = saved.lamination;
+    afterDocsRender(container);
 }
 
 /**
@@ -1983,7 +1984,13 @@ function selectionFor(color, bwSel, colorSel) {
    The book's binding is charged once per copy, on the first file of the book,
    and every file in it prints `combinedBook.copies` times.                    */
 const COMBINED_BINDING = '__combined';
-let combinedBook = { bindingId: '', copies: 1, order: [] };   // order = doc ids, top → bottom
+let combinedBook = {
+    enabled:    false,   // "Combine files into one book" switch
+    pickerOpen: false,   // file-picker dropdown open?
+    bindingId:  '',
+    copies:     1,
+    order:      [],      // doc ids, top → bottom
+};
 
 /* Book members in binding order. Files newly added to the book go to the end. */
 function combinedMembers() {
@@ -2099,9 +2106,19 @@ function rerenderDocs() {
     }
 }
 
-/* First doc with a config that cannot be priced, or null.
-   Shows a toast and flashes the card so the user can fix it. */
+/* False (with a toast + highlight) when a doc can't be ordered as configured:
+   a mixed-colour file with no colour pages, or a book with fewer than 2 files. */
 function checkDocConfigs() {
+    if (combinedBook.enabled && combinedMembers().length < 2) {
+        showToast('Tick at least 2 files to combine, or turn off "Combine files".', 'warning');
+        const book = [...document.querySelectorAll('.xo-book-card')].find(el => el.offsetParent !== null);
+        if (book) {
+            book.classList.add('error');
+            setTimeout(() => book.classList.remove('error'), 1600);
+            book.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return false;
+    }
     const i = uploadedFiles.findIndex(f => f.config.color === 'mixed' && !colorPagesOf(f).length);
     if (i === -1) return true;
     showToast(`Doc ${i + 1}: enter the pages to print in colour.`, 'warning');
@@ -2205,7 +2222,8 @@ function renderDocCards() {
     calculatePrices();
     const container = document.getElementById('xoDocCards');
     if (!container) return;
-    container.innerHTML = uploadedFiles.map((f, i) => buildDocCard(f, i)).join('') + buildCombinedBookCard();
+    container.innerHTML = buildCombinedBookCard() + uploadedFiles.map((f, i) => buildDocCard(f, i)).join('');
+    afterDocsRender(container);
     renderFinalSummary();
 }
 
@@ -2288,14 +2306,12 @@ function buildDocCard(f, i) {
     const filteredBinding = bindSelIds
         ? bindingList.filter(b => bindSelIds.includes(b.id))
         : bindingList;
-    /* "Combine" binds several files as one book — offered whenever there is a second
-       file, even if the shop lists no binding types (the shop then binds it at no charge) */
-    const canCombine = uploadedFiles.length > 1 || inBook;
+    /* Files in the combined book are bound by the book panel ("Combine files") */
+    const bookPos  = inBook ? combinedMembers().indexOf(f) + 1 : 0;
     const bindOpts = `<option value="none">No Binding</option>` +
-        (bindEnabled ? filteredBinding : []).map(b =>
+        filteredBinding.map(b =>
             `<option value="${b.id}" ${cfg.bindingId === b.id ? 'selected' : ''}>${b.name}</option>`
-        ).join('') +
-        (canCombine ? `<option value="${COMBINED_BINDING}" ${inBook ? 'selected' : ''}>Combine with other files (one book)</option>` : '');
+        ).join('');
 
     /* Lamination list: shop-filtered if available */
     const laminationList = shopCfg ? shopCfg.lamination : xeroxConfig.lamination;
@@ -2340,7 +2356,13 @@ function buildDocCard(f, i) {
                 </select>
             </div>` : '',
 
-        binding: (bindEnabled || canCombine) ? `
+        binding: inBook ? `
+            <div class="xo-config-group">
+                <label class="xo-config-label">Binding</label>
+                <button type="button" class="xo-book-tag" onclick="scrollToBook()" title="Bound with the other files in the book">
+                    <i class="fa-solid fa-book"></i> In book · #${bookPos}
+                </button>
+            </div>` : bindEnabled ? `
             <div class="xo-config-group">
                 <label class="xo-config-label">Binding</label>
                 <select class="xo-select" onchange="updateConfig(${i},'bindingId',this.value)">${bindOpts}</select>
@@ -2456,51 +2478,161 @@ function buildColorPagesEditor(f, i) {
             </div>`;
 }
 
-/* Panel listing the files bound together as one book, with binding type + copies */
+/* "Combine files into one book" panel, shown above the document cards once
+   there are 2+ files: a switch, a dropdown to pick which files go in the book,
+   a page-order preview (first-page thumbnails, drag to reorder) and the book's
+   binding type + copies. Files left out print on their own.                 */
 function buildCombinedBookCard() {
-    const members = combinedMembers();
-    if (!members.length) return '';
+    const on = combinedBook.enabled;
+    if (uploadedFiles.length < 2 && !on) return '';
+
+    const toggle = `
+        <label class="xo-book-toggle">
+            <span class="xo-book-toggle-icon"><i class="fa-solid fa-book"></i></span>
+            <span class="xo-book-toggle-text">
+                <span class="xo-book-title">Combine files into one book</span>
+                <span class="xo-book-sub">Bind several files together as a single spiral / binding</span>
+            </span>
+            <input type="checkbox" class="xo-switch-input" ${on ? 'checked' : ''} onchange="toggleCombine(this.checked)">
+            <span class="xo-switch" aria-hidden="true"></span>
+        </label>`;
+    if (!on) return `<div class="xo-book-card">${toggle}</div>`;
+
+    const members    = combinedMembers();
+    const standalone = uploadedFiles.filter(f => f.config.bindingId !== COMBINED_BINDING);
     const book       = combinedBinding();
     const totalPages = members.reduce((s, f) => s + f.pages, 0);
-    const bindOpts   = activeBindingList().map(b =>
-        `<option value="${b.id}" ${book?.id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')
+
+    const picker = `
+        <details class="xo-book-picker" ${combinedBook.pickerOpen ? 'open' : ''} ontoggle="setBookPickerOpen(this.open)">
+            <summary>
+                <span class="xo-book-picker-label"><i class="fa-solid fa-list-check"></i> Files in the book</span>
+                <span class="xo-book-picker-count">${members.length} of ${uploadedFiles.length}</span>
+                <i class="fa-solid fa-chevron-down xo-book-picker-caret"></i>
+            </summary>
+            <div class="xo-book-picker-list">
+                ${uploadedFiles.map(f => `
+                <label class="xo-book-pick">
+                    <input type="checkbox" ${f.config.bindingId === COMBINED_BINDING ? 'checked' : ''} onchange="toggleBookFile('${f.id}', this.checked)">
+                    <span class="xo-book-pick-box"><i class="fa-solid fa-check"></i></span>
+                    <span class="xo-book-pick-name" title="${esc(f.name)}">${esc(f.name)}</span>
+                    <span class="xo-book-pick-pages">${f.pages} pg</span>
+                </label>`).join('')}
+            </div>
+        </details>`;
+
+    let next = 1;
+    const rows = members.map((f, n) => {
+        const from = next, to = next + f.pages - 1;
+        next = to + 1;
+        return `
+            <li class="xo-book-file" data-id="${f.id}">
+                <span class="xo-book-handle" title="Drag to reorder" aria-label="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span>
+                <span class="xo-book-thumb" data-thumb="${f.id}">${f.thumb ? `<img src="${f.thumb}" alt="">` : '<i class="fa-regular fa-file-lines"></i>'}<span class="xo-book-file-num">${n + 1}</span></span>
+                <span class="xo-book-file-info">
+                    <span class="xo-book-file-name" title="${esc(f.name)}">${esc(f.name)}</span>
+                    <span class="xo-book-file-range">${f.pages === 1 ? `Book page ${from}` : `Book pages ${from}–${to}`}</span>
+                </span>
+                <span class="xo-book-moves">
+                    <button type="button" class="xo-book-move" onclick="moveInBook('${f.id}',-1)" ${n === 0 ? 'disabled' : ''} title="Move up"><i class="fa-solid fa-chevron-up"></i></button>
+                    <button type="button" class="xo-book-move" onclick="moveInBook('${f.id}',1)" ${n === members.length - 1 ? 'disabled' : ''} title="Move down"><i class="fa-solid fa-chevron-down"></i></button>
+                </span>
+            </li>`;
+    }).join('');
+
+    const bindOpts = activeBindingList().map(b =>
+        `<option value="${b.id}" ${book?.id === b.id ? 'selected' : ''}>${esc(b.name)}${b.price ? ` — ₹${Number(b.price).toFixed(2)}` : ''}</option>`).join('')
         || `<option value="">Shop's own binding</option>`;
-    const rows = members.map((f, n) => `
-            <li class="xo-book-file">
-                <span class="xo-book-file-num">${n + 1}</span>
-                <span class="xo-book-file-name" title="${esc(f.name)}">${esc(f.name)}</span>
-                <span class="xo-book-file-pages">${f.pages} pg</span>
-                <button type="button" class="xo-book-move" onclick="moveInBook('${f.id}',-1)" ${n === 0 ? 'disabled' : ''} title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
-                <button type="button" class="xo-book-move" onclick="moveInBook('${f.id}',1)" ${n === members.length - 1 ? 'disabled' : ''} title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
-            </li>`).join('');
 
     return `
-    <div class="xo-book-card">
-        <div class="xo-book-head">
-            <i class="fa-solid fa-book"></i>
-            <div>
-                <div class="xo-book-title">Combined book</div>
-                <div class="xo-book-sub">${members.length} file${members.length === 1 ? '' : 's'} · ${totalPages} pages bound as one, in this order</div>
+    <div class="xo-book-card is-on" id="xoBookCard">
+        ${toggle}
+        <div class="xo-book-body">
+            ${picker}
+            ${members.length < 2 ? `
+            <div class="xo-book-note"><i class="fa-solid fa-circle-info"></i> Tick at least 2 files to combine them into one book.</div>` : ''}
+            ${members.length ? `
+            <div class="xo-book-order-head">
+                <span>Page order</span>
+                <span class="xo-book-order-hint"><i class="fa-solid fa-grip-vertical"></i> Drag to rearrange</span>
             </div>
-        </div>
-        <ol class="xo-book-list">${rows}</ol>
-        ${members.length < 2 ? `<div class="xo-book-note"><i class="fa-solid fa-circle-info"></i> Set another file's Binding to “Combine with other files” to add it to this book.</div>` : ''}
-        <div class="xo-config-grid">
-            <div class="xo-config-group">
-                <label class="xo-config-label">Binding type</label>
-                <select class="xo-select" onchange="setBookBinding(this.value)">${bindOpts}</select>
-            </div>
-            <div class="xo-config-group">
-                <label class="xo-config-label">Book copies</label>
-                <div class="xo-qty-counter">
-                    <button class="xo-qty-btn" type="button" onclick="setBookCopies(${combinedBook.copies - 1})" title="Decrease copies"><i class="fa-solid fa-minus"></i></button>
-                    <input type="number" min="1" max="9999" class="xo-qty-val" value="${combinedBook.copies}" onchange="setBookCopies(this.value)" onclick="this.select()">
-                    <button class="xo-qty-btn" type="button" onclick="setBookCopies(${combinedBook.copies + 1})" title="Increase copies"><i class="fa-solid fa-plus"></i></button>
+            <ol class="xo-book-list">${rows}</ol>` : ''}
+            <div class="xo-config-grid">
+                <div class="xo-config-group full">
+                    <label class="xo-config-label">Binding type</label>
+                    <select class="xo-select" onchange="setBookBinding(this.value)">${bindOpts}</select>
+                </div>
+                <div class="xo-config-group">
+                    <label class="xo-config-label">Book copies</label>
+                    <div class="xo-qty-counter">
+                        <button class="xo-qty-btn" type="button" onclick="setBookCopies(${combinedBook.copies - 1})" title="Decrease copies"><i class="fa-solid fa-minus"></i></button>
+                        <input type="number" min="1" max="9999" class="xo-qty-val" value="${combinedBook.copies}" onchange="setBookCopies(this.value)" onclick="this.select()">
+                        <button class="xo-qty-btn" type="button" onclick="setBookCopies(${combinedBook.copies + 1})" title="Increase copies"><i class="fa-solid fa-plus"></i></button>
+                    </div>
                 </div>
             </div>
+            <div class="xo-book-foot">
+                <div><strong>${members.length} file${members.length === 1 ? '' : 's'} · ${totalPages} pages</strong> bound as one book${combinedBook.copies > 1 ? ` × ${combinedBook.copies} copies` : ''}</div>
+                <div>${book
+                    ? `${esc(book.name)} ₹${(book.price || 0).toFixed(2)}${combinedBook.copies > 1 ? ` × ${combinedBook.copies}` : ''} — charged once per book`
+                    : 'No binding price set by this shop — bound at no extra charge'}</div>
+                ${standalone.length ? `<div class="xo-book-foot-alone"><i class="fa-regular fa-file"></i> Printed separately: ${standalone.map(f => esc(f.name)).join(', ')}</div>` : ''}
+            </div>
         </div>
-        <div class="xo-book-foot">${book ? `${esc(book.name)} ₹${(book.price || 0).toFixed(2)} × ${combinedBook.copies} — charged once for the whole book` : 'This shop has no binding price set — the files are bound together as one book at no extra charge'}</div>
     </div>`;
+}
+
+/* After the cards are (re)rendered: drag-to-reorder + first-page thumbnails */
+function afterDocsRender(container) {
+    const list = container?.querySelector('.xo-book-list');
+    if (!list) return;
+    if (typeof Sortable !== 'undefined') {
+        Sortable.create(list, {
+            handle: '.xo-book-handle', animation: 160,
+            ghostClass: 'xo-book-ghost', chosenClass: 'xo-book-chosen',
+            onEnd: () => setBookOrder([...list.children].map(li => li.dataset.id)),
+        });
+    }
+    combinedMembers().forEach(makeBookThumb);
+}
+
+/* First page of a file as a small image for the book preview (cached on the file) */
+async function makeBookThumb(f) {
+    if (f.thumb || f._thumbBusy || !f.fileObj) return;
+    f._thumbBusy = true;
+    try {
+        if (/^image\//.test(f.fileObj.type)) {
+            f.thumb = URL.createObjectURL(f.fileObj);
+        } else if (typeof pdfjsLib !== 'undefined') {
+            const pdf  = await pdfjsLib.getDocument({ data: await f.fileObj.arrayBuffer() }).promise;
+            const page = await pdf.getPage(1);
+            const vp   = page.getViewport({ scale: 96 / page.getViewport({ scale: 1 }).width });
+            const c    = document.createElement('canvas');
+            c.width = vp.width; c.height = vp.height;
+            await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            f.thumb = c.toDataURL('image/jpeg', 0.75);
+            pdf.destroy?.();
+        }
+    } catch (_) { /* no preview — the file icon stays */ }
+    finally { f._thumbBusy = false; }
+    if (f.thumb) {
+        document.querySelectorAll(`[data-thumb="${f.id}"]`).forEach(el => {
+            const num = el.querySelector('.xo-book-file-num')?.outerHTML || '';
+            el.innerHTML = `<img src="${f.thumb}" alt="">${num}`;
+        });
+    }
+}
+
+function addToBook(f) {
+    if (f.config.bindingId === COMBINED_BINDING) return;
+    f._before = { bindingId: f.config.bindingId, quantity: f.config.quantity };
+    f.config.bindingId = COMBINED_BINDING;
+}
+
+function removeFromBook(f) {
+    if (f.config.bindingId !== COMBINED_BINDING) return;
+    f.config.bindingId = f._before?.bindingId || 'none';
+    if (f._before?.quantity) f.config.quantity = f._before.quantity;
 }
 
 /* ════ DOC CONFIG ACTIONS ════ */
@@ -2517,6 +2649,41 @@ window.moveInBook = function(id, delta) {
     if (from === -1 || to < 0 || to >= order.length) return;
     [order[from], order[to]] = [order[to], order[from]];
     rerenderDocs();
+};
+
+window.toggleCombine = function(on) {
+    combinedBook.enabled = !!on;
+    if (on && !combinedMembers().length) {
+        /* Start with every file in the book; the book takes the first file's
+           binding (if it had one) and copies, so nothing changes unexpectedly */
+        const withBinding = uploadedFiles.find(f => f.config.bindingId && f.config.bindingId !== 'none');
+        if (withBinding) combinedBook.bindingId = withBinding.config.bindingId;
+        combinedBook.copies = parseInt(uploadedFiles[0]?.config.quantity, 10) || 1;
+        uploadedFiles.forEach(addToBook);
+        combinedBook.pickerOpen = true;
+    }
+    if (!on) uploadedFiles.forEach(removeFromBook);
+    rerenderDocs();
+};
+
+window.toggleBookFile = function(id, on) {
+    const f = uploadedFiles.find(x => x.id === id);
+    if (!f) return;
+    if (on) addToBook(f); else removeFromBook(f);
+    rerenderDocs();
+};
+
+window.setBookPickerOpen = function(open) { combinedBook.pickerOpen = !!open; };
+
+/* New order from drag-and-drop (doc ids, top → bottom) */
+function setBookOrder(ids) {
+    combinedBook.order = ids.filter(Boolean);
+    rerenderDocs();
+}
+
+window.scrollToBook = function() {
+    const card = [...document.querySelectorAll('.xo-book-card')].find(el => el.offsetParent !== null);
+    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 };
 
 window.setBookBinding = function(id) {
@@ -2536,7 +2703,6 @@ function _inStep5() {
 }
 
 window.updateConfig = function(i, key, value) {
-    const prevValue = uploadedFiles[i].config[key];
     uploadedFiles[i].config[key] = value;
     if (key === 'paperId') {
         const activeShopId = selectedShopId || selectedPickerShopId;
@@ -2596,14 +2762,6 @@ window.updateConfig = function(i, key, value) {
         const ratColorSel = ratioOpt?.color?.selection ?? ratioOpt?.selection ?? ['1:1', '1:2'];
         const activeRat   = selectionFor(value, ratBwSel, ratColorSel);
         if (!activeRat.includes(f.config.ratio)) f.config.ratio = activeRat[0] || '1:1';
-    }
-    /* First file into a new book: the book starts with that file's binding + copies */
-    if (key === 'bindingId' && value === COMBINED_BINDING) {
-        const f = uploadedFiles[i];
-        if (combinedMembers().length === 1) {
-            if (prevValue && prevValue !== 'none' && prevValue !== COMBINED_BINDING) combinedBook.bindingId = prevValue;
-            combinedBook.copies = parseInt(f.config.quantity, 10) || 1;
-        }
     }
     rerenderDocs();
 };
