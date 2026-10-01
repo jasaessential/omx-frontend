@@ -1,0 +1,689 @@
+/* ═══════════════════════════════════════════════
+   manage-shops.css  —  JASA V2
+   ═══════════════════════════════════════════════ */
+
+/* ── Page title in header ── */
+.ms-page-title {
+    font-size: .95rem;
+    font-weight: 800;
+    color: var(--txt1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ms-page-title i { color: var(--primary); }
+
+/* ── Layout wrapper ── */
+.ms-wrap {
+    padding: 14px 14px calc(var(--bnh) + 20px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ── FIXED HEADER with 4 Buttons ── */
+.ms-fixed-header {
+    position: sticky;
+    top: var(--hh);
+    z-index: 100;
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 12px;
+    box-shadow: var(--sh-sm);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.ms-header-btn {
+    height: 56px;
+    background: var(--bg);
+    border: 1.5px solid var(--border2);
+    border-radius: var(--r-sm);
+    color: var(--txt1);
+    font-size: .82rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all var(--ease);
+}
+
+.ms-header-btn i {
+    font-size: 1.1rem;
+    color: var(--txt2);
+    transition: color var(--ease);
+}
+
+.ms-header-btn:hover {
+    background: var(--primary-faint);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(45,140,240,.15);
+}
+
+.ms-header-btn:hover i {
+    color: var(--primary);
+}
+
+.ms-header-btn-primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.ms-header-btn-primary i {
+    color: #fff;
+}
+
+.ms-header-btn-primary:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    color: #fff;
+}
+
+.ms-header-btn-primary:hover i {
+    color: #fff;
+}
+
+/* Responsive for smaller screens */
+@media (max-width: 600px) {
+    .ms-fixed-header {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .ms-header-btn {
+        height: 52px;
+        font-size: .75rem;
+    }
+    
+    .ms-header-btn i {
+        font-size: 1rem;
+    }
+}
+
+/* ── Shared button styles ── */
+.ms-btn-primary {
+    height: 42px;
+    padding: 0 18px;
+    flex-shrink: 0;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--r-sm);
+    font-size: .82rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: background var(--ease), transform var(--ease), box-shadow var(--ease);
+}
+.ms-btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(45,140,240,.3); }
+.ms-btn-primary:active { transform: translateY(0); }
+
+.ms-btn-success {
+    height: 42px;
+    padding: 0 18px;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: var(--r-sm);
+    font-size: .82rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: background var(--ease), transform var(--ease);
+}
+.ms-btn-success:hover { background: #15803d; transform: translateY(-1px); }
+
+/* ── Shared input ── */
+.ms-input {
+    width: 100%;
+    height: 42px;
+    border: 1.5px solid var(--border2);
+    border-radius: var(--r-sm);
+    padding: 0 14px;
+    font-size: .84rem;
+    font-weight: 600;
+    background: var(--bg);
+    color: var(--txt1);
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--ease), box-shadow var(--ease);
+}
+.ms-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(45,140,240,.12); }
+.ms-input::placeholder { color: var(--txt3); font-weight: 500; }
+textarea.ms-input {
+    height: auto;
+    padding: 12px 14px;
+    resize: vertical;
+}
+
+/* ── SHOPS GRID ── */
+.ms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+}
+.ms-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    box-shadow: var(--sh-sm);
+    display: flex;
+    flex-direction: column;
+    transition: transform var(--ease), box-shadow var(--ease);
+}
+.ms-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sh-md);
+}
+
+.ms-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+.ms-card-title {
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: var(--txt1);
+    margin-bottom: 4px;
+}
+.ms-card-address {
+    font-size: .75rem;
+    color: var(--txt3);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ms-card-contact {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--txt2);
+    margin-top: 6px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.ms-card-contact span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ms-card-contact .wa-icon { color: #16a34a; }
+
+.ms-services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.ms-service-chip {
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    padding: 4px 8px;
+    border-radius: var(--r-sm);
+    font-size: .65rem;
+    font-weight: 700;
+    color: var(--txt2);
+}
+
+.ms-rules-wrap {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+.ms-rules-col {
+    flex: 1;
+}
+.ms-rules-col-title {
+    font-size: .65rem;
+    font-weight: 800;
+    color: var(--txt3);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 4px;
+}
+.ms-rule-line {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--txt1);
+    line-height: 1.4;
+}
+.ms-rule-line i { color: var(--txt3); font-size: .65rem; margin: 0 4px; font-weight: normal; }
+.ms-rule-free { color: #16a34a; font-weight: 800; }
+
+.ms-card-users {
+    font-size: .75rem;
+    line-height: 1.5;
+    margin-bottom: 14px;
+    flex: 1;
+    color: var(--txt1);
+}
+.ms-card-users strong { color: var(--txt3); font-weight: 800; }
+
+.ms-card-actions {
+    display: flex;
+    gap: 8px;
+}
+.ms-btn-edit {
+    flex: 1;
+    height: 36px;
+    background: var(--primary-faint);
+    color: var(--primary);
+    border: none;
+    border-radius: var(--r-sm);
+    font-weight: 800;
+    font-size: .8rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--ease);
+}
+.ms-btn-edit:hover { background: var(--primary-light); }
+.ms-btn-del {
+    flex: 1;
+    height: 36px;
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: var(--r-sm);
+    font-weight: 800;
+    font-size: .8rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--ease);
+}
+.ms-btn-del:hover { background: #fca5a5; }
+
+/* ── FORM MODAL ── */
+.ms-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    backdrop-filter: blur(4px);
+    z-index: 1500;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+}
+.ms-modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.ms-modal {
+    background: var(--bg-white);
+    border-radius: 24px 24px 0 0;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    transform: translateY(30px);
+    transition: transform .28s cubic-bezier(.2,.8,.2,1);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+    display: flex;
+    flex-direction: column;
+}
+.ms-modal-overlay.active .ms-modal { transform: translateY(0); }
+
+@media (min-width: 600px) {
+    .ms-modal-overlay { align-items: center; }
+    .ms-modal { border-radius: 20px; max-height: 85vh; }
+}
+
+.ms-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #1a55d4, var(--primary));
+    border-radius: 24px 24px 0 0;
+    position: relative;
+    flex-shrink: 0;
+}
+@media (min-width: 600px) {
+    .ms-modal-header { border-radius: 20px 20px 0 0; }
+}
+
+.ms-modal-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #fff;
+}
+.ms-modal-subtitle {
+    font-size: .75rem;
+    font-weight: 600;
+    color: rgba(255,255,255,.8);
+    margin-top: 2px;
+}
+
+.ms-modal-close {
+    position: absolute;
+    top: 18px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .95rem;
+    cursor: pointer;
+    border: none;
+    transition: background var(--ease);
+    flex-shrink: 0;
+}
+.ms-modal-close:hover { background: rgba(255,255,255,.32); }
+
+.ms-modal-body {
+    padding: 16px 16px 4px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ── Form Groups ── */
+.ms-group {
+    background: var(--bg);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.ms-group-title {
+    font-size: .8rem;
+    font-weight: 800;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 12px;
+}
+
+.ms-label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 800;
+    color: var(--txt2);
+    margin-bottom: 6px;
+}
+.ms-label .req { color: #dc2626; }
+
+/* Dynamic Rows */
+.ms-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.ms-btn-sm {
+    background: var(--bg-white);
+    border: 1px solid var(--border2);
+    color: var(--txt1);
+    padding: 4px 10px;
+    border-radius: var(--r-sm);
+    font-size: .7rem;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background var(--ease);
+}
+.ms-btn-sm:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+.ms-entry {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.ms-btn-rm {
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    width: 42px;
+    flex-shrink: 0;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--ease);
+}
+.ms-btn-rm:hover { background: #fca5a5; }
+
+/* Checkboxes */
+.ms-check-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.ms-check-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--txt1);
+    cursor: pointer;
+}
+.ms-check-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
+/* Pricing Rules Box */
+.ms-rules-box {
+    background: var(--bg-white);
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--r-sm);
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.ms-rule-entry {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.ms-rule-entry input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 8px;
+    height: 38px;
+}
+.ms-rule-sep {
+    color: var(--txt3);
+    font-size: .75rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.ms-modal-foot {
+    padding: 16px;
+    background: var(--bg-white);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.ms-submit-btn {
+    width: 100%;
+    height: 46px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--r-sm);
+    font-weight: 800;
+    font-size: .95rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background var(--ease), transform var(--ease);
+}
+.ms-submit-btn:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.ms-submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Choices.js Overrides */
+.choices__inner {
+    background-color: var(--bg) !important;
+    border: 1.5px solid var(--border2) !important;
+    border-radius: var(--r-sm) !important;
+    min-height: 42px !important;
+    padding: 4px 6px !important;
+}
+.choices__input {
+    background-color: transparent !important;
+    color: var(--txt1) !important;
+}
+.choices__list--dropdown {
+    background-color: var(--bg-white) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--txt1) !important;
+    border-radius: var(--r-sm) !important;
+    box-shadow: var(--sh-md) !important;
+    z-index: 2000 !important;
+}
+.choices__list--dropdown .choices__item--selectable.is-highlighted {
+    background-color: var(--primary-light) !important;
+    color: var(--primary) !important;
+    font-weight: 700 !important;
+}
+.choices[data-type*="select-multiple"] .choices__button {
+    border-left: 1px solid var(--border);
+    opacity: 0.5;
+}
+
+/* Skeleton */
+.ms-skeleton {
+    height: 180px;
+    border-radius: var(--r);
+    background: linear-gradient(90deg, var(--border) 25%, var(--bg-white) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: msShimmer 1.4s infinite;
+}
+@keyframes msShimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+}
+
+/* ── "Others" Fallback Shops Card ── */
+.ms-fallback-card {
+    background: var(--bg-white);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ms-fallback-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.ms-fallback-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-sm);
+    background: var(--primary-faint, rgba(45,140,240,0.1));
+    color: var(--primary, #2D8CF0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.ms-fallback-card-title {
+    font-weight: 800;
+    font-size: .9rem;
+    color: var(--txt1);
+    margin-bottom: 3px;
+}
+
+.ms-fallback-card-sub {
+    font-size: .75rem;
+    color: var(--txt3);
+    line-height: 1.4;
+}
+
+.ms-fallback-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ms-fallback-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ms-fallback-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--txt2);
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+.ms-fallback-select {
+    flex: 1;
+    padding: 8px 10px !important;
+    font-size: .82rem !important;
+    margin-bottom: 0 !important;
+}
+
+.ms-fallback-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ms-fallback-status {
+    font-size: .75rem;
+    color: var(--txt3);
+    flex: 1;
+}
+.ms-fallback-status.success { color: #16a34a; }
+.ms-fallback-status.error   { color: var(--danger, #ef4444); }

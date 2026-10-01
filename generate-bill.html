@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate & Print Bill — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="seller-orders.css">
+    <link rel="stylesheet" href="admin-order-details.css">
+    <link rel="stylesheet" href="generate-bill.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+<!-- ════ SIDEBAR OVERLAY (Screen Only) ════ -->
+<div class="sidebar-overlay no-print" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ════ SIDEBAR (Screen Only) ════ -->
+<aside class="sidebar no-print" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav>
+</aside>
+
+<!-- ════ HEADER (Screen Only) ════ -->
+<header class="header no-print" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="so-back-btn" id="soBackBtn" onclick="goBack()">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div class="so-detail-header-info">
+                <div class="so-detail-header-title" id="billTitle">Generate &amp; Print Bill</div>
+                <div class="so-detail-header-sub" id="billSub">Loading…</div>
+            </div>
+        </div>
+        <div class="header-right" style="display:flex;gap:8px;">
+            <button class="bill-header-print-btn" onclick="triggerPrint()">
+                <i class="fa-solid fa-print"></i> Print Bill
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ════ MAIN ════ -->
+<main class="main-content bill-main">
+    <div class="page-wrap bill-wrap">
+
+        <!-- Skeleton (Screen Only) -->
+        <div id="billSkeleton" class="no-print">
+            <div class="so-skeleton" style="height:120px; border-radius:12px;"></div>
+            <div class="so-skeleton" style="height:350px; margin-top:14px; border-radius:12px;"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="billContent" style="display:none;">
+
+            <!-- ════ CONTROLS PANEL (Screen Only) ════ -->
+            <div class="bill-controls-section no-print">
+                <div class="bill-card">
+                    <div class="bill-card-header">
+                        <div class="bill-card-title">
+                            <i class="fa-solid fa-list-check" style="color:var(--primary);"></i>
+                            Select Items to Include in Bill
+                        </div>
+                        <div class="bill-select-actions">
+                            <button class="bill-select-link" onclick="selectAllItems(true)">Select All</button>
+                            <span style="color:var(--border2);">|</span>
+                            <button class="bill-select-link" onclick="selectAllItems(false)">Deselect All</button>
+                        </div>
+                    </div>
+                    <div id="billItemsChecklist" class="bill-items-checklist">
+                        <!-- Dynamic Checkbox List -->
+                    </div>
+                </div>
+
+                <div class="bill-card" style="margin-top:14px;">
+                    <div class="bill-card-header">
+                        <div class="bill-card-title">
+                            <i class="fa-solid fa-sliders" style="color:var(--primary);"></i>
+                            Invoice Customization Options
+                        </div>
+                    </div>
+                    <div class="bill-options-body">
+                        <label class="bill-toggle-opt" id="deliveryToggleWrap">
+                            <input type="checkbox" id="chkIncludeDelivery" checked onchange="updateBillPreview()">
+                            <span>Include Delivery Fee in Bill</span>
+                        </label>
+
+                        <div class="bill-input-group" style="margin-top:12px;">
+                            <label for="billCustomNote" class="bill-input-label">Custom Note / Terms on Invoice (Optional):</label>
+                            <input type="text" id="billCustomNote" class="bill-text-input" 
+                                placeholder="e.g. Thank you for your order! Goods once sold cannot be returned."
+                                oninput="updateBillPreview()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print & Download Quick Bar -->
+                <div class="bill-action-bar" style="margin-top:16px;">
+                    <button class="bill-action-btn bill-btn-primary" onclick="triggerPrint()">
+                        <i class="fa-solid fa-print"></i> Print Bill
+                    </button>
+                    <button class="bill-action-btn bill-btn-secondary" onclick="triggerPrint()">
+                        <i class="fa-solid fa-file-pdf"></i> Download PDF
+                    </button>
+                    <button class="bill-action-btn bill-btn-ghost" onclick="goBack()">
+                        <i class="fa-solid fa-arrow-left"></i> Back to Order
+                    </button>
+                </div>
+            </div>
+
+            <!-- ════ PREVIEW & PRINTABLE INVOICE SHEET ════ -->
+            <div class="bill-preview-wrapper">
+                <div class="bill-sheet-header-notice no-print">
+                    <i class="fa-solid fa-eye"></i> Live Invoice Preview
+                </div>
+
+                <!-- Printable Sheet -->
+                <div class="bill-sheet" id="invoiceSheet">
+                    <!-- Dynamic Invoice Header -->
+                    <div class="inv-header">
+                        <div class="inv-brand-block">
+                            <div class="inv-brand-logo">
+                                <img src="favicon.ico" alt="Logo" class="inv-logo-img">
+                            </div>
+                            <div>
+                                <div class="inv-shop-name" id="invShopName">SHOP NAME</div>
+                                <div class="inv-shop-addr" id="invShopAddr">Shop Address, City</div>
+                                <div class="inv-shop-contact" id="invShopContact">Phone: —</div>
+                            </div>
+                        </div>
+                        <div class="inv-meta-block">
+                            <div class="inv-badge">TAX INVOICE / BILL</div>
+                            <table class="inv-meta-table">
+                                <tr><td>Invoice No:</td><td id="invNumber">INV-00000</td></tr>
+                                <tr><td>Date:</td><td id="invDate">DD/MM/YYYY</td></tr>
+                                <tr><td>Order ID:</td><td id="invOrderId">#00000</td></tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <hr class="inv-divider">
+
+                    <!-- Customer & Order Meta -->
+                    <div class="inv-grid-2">
+                        <div class="inv-box">
+                            <div class="inv-box-title">Billed To (Customer):</div>
+                            <div class="inv-box-content">
+                                <div class="inv-cust-name" id="invCustName">Customer Name</div>
+                                <div class="inv-cust-detail" id="invCustPhone"><i class="fa-solid fa-phone"></i> —</div>
+                                <div class="inv-cust-detail" id="invCustAddr"><i class="fa-solid fa-location-dot"></i> —</div>
+                            </div>
+                        </div>
+                        <div class="inv-box">
+                            <div class="inv-box-title">Order &amp; Payment Details:</div>
+                            <div class="inv-box-content">
+                                <div class="inv-cust-detail"><strong>Fulfillment:</strong> <span id="invFulfillment">—</span></div>
+                                <div class="inv-cust-detail"><strong>Payment Method:</strong> <span id="invPayMethod">—</span></div>
+                                <div class="inv-cust-detail"><strong>Payment Status:</strong> <span id="invPayStatus" class="inv-status-pill">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <table class="inv-items-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;text-align:center;">#</th>
+                                <th>Item / Document Description</th>
+                                <th style="width:110px;text-align:center;">Rate</th>
+                                <th style="width:80px;text-align:center;">Qty</th>
+                                <th style="width:110px;text-align:right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invItemsBody">
+                            <!-- Dynamic Table Rows -->
+                        </tbody>
+                    </table>
+
+                    <!-- Pricing Summary -->
+                    <div class="inv-summary-container">
+                        <div class="inv-notes-side">
+                            <div class="inv-notes-title">Notes / Terms:</div>
+                            <div class="inv-notes-text" id="invNotesText">Thank you for your business!</div>
+                        </div>
+                        <div class="inv-totals-side">
+                            <table class="inv-totals-table">
+                                <tr>
+                                    <td>Items Subtotal:</td>
+                                    <td id="invSubtotal" style="text-align:right;">₹0.00</td>
+                                </tr>
+                                <tr id="invDiscountRow" style="display:none;">
+                                    <td id="invDiscountLabel">Coupon Discount:</td>
+                                    <td id="invDiscount" style="text-align:right;color:#16a34a;">-₹0.00</td>
+                                </tr>
+                                <tr id="invWalletRow" style="display:none;">
+                                    <td>Paid from Wallet:</td>
+                                    <td id="invWallet" style="text-align:right;color:#16a34a;">-₹0.00</td>
+                                </tr>
+                                <tr id="invDeliveryRow">
+                                    <td>Delivery Fee:</td>
+                                    <td id="invDeliveryFee" style="text-align:right;">₹0.00</td>
+                                </tr>
+                                <tr class="inv-grand-total">
+                                    <td>Grand Total:</td>
+                                    <td id="invGrandTotal" style="text-align:right;">₹0.00</td>
+                                </tr>
+                                <tr id="invPaidRow">
+                                    <td>Amount Paid:</td>
+                                    <td id="invAmountPaid" style="text-align:right;color:#16a34a;">₹0.00</td>
+                                </tr>
+                                <tr id="invBalanceRow">
+                                    <td>Balance Due:</td>
+                                    <td id="invBalanceDue" style="text-align:right;color:#e11d48;font-weight:800;">₹0.00</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sign & Footer -->
+                    <div class="inv-footer">
+                        <div class="inv-footer-text">This is a computer-generated invoice. No signature required.</div>
+                        <div class="inv-sign-box">
+                            <div class="inv-sign-line">Authorized Signatory</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Error (Screen Only) -->
+        <div class="so-empty no-print" id="billError" style="display:none;">
+            <i class="fa-solid fa-triangle-exclamation so-empty-icon" style="color:#f59e0b;"></i>
+            <h3>Order Not Found</h3>
+            <p>Unable to load order information for generating bill.</p>
+            <button onclick="goBack()" class="so-back-link-btn">
+                <i class="fa-solid fa-arrow-left"></i> Go Back
+            </button>
+        </div>
+
+    </div>
+</main>
+
+<!-- ════ BOTTOM NAV (Screen Only) ════ -->
+<nav class="so-bottom-nav no-print">
+    <a href="index.html" class="so-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="seller-orders.html" class="so-nav-item active"><i class="fa-solid fa-store"></i><span>Orders</span></a>
+    <a href="profile.html" class="so-nav-item"><i class="fa-solid fa-user-gear"></i><span>Profile</span></a>
+</nav>
+
+<!-- ════ TOAST (Screen Only) ════ -->
+<div class="so-toast no-print" id="soToast"></div>
+
+<!-- ════ SCRIPTS ════ -->
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="generate-bill.js?v=20261001a"></script>
+</body>
+</html>

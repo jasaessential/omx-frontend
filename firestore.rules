@@ -1,0 +1,564 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════════
+    //  HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════
+
+    // Is the request from a signed-in user?
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Is the requester the owner of this uid?
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // Read the caller's user doc (cached within the request)
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Return the caller's roles array, falling back to [role] or ['user']
+    function roles() {
+      let d = userData();
+      return d.get('roles', [d.get('role', 'user')]);
+    }
+
+    function isAdmin()    { return isAuth() && roles().hasAny(['admin']); }
+    function isSeller()   { return isAuth() && roles().hasAny(['seller']); }
+    function isEmployee() { return isAuth() && roles().hasAny(['employee']); }
+
+    // Fine-grained employee permissions
+    function canManageItems()     { return isAdmin() || roles().hasAny(['manage_items']); }
+    function canManageSupport()   { return isAdmin() || roles().hasAny(['manage_support']); }
+    function canManageRequests()  { return isAdmin() || roles().hasAny(['manage_requests']); }
+    function canManageBanners()   { return isAdmin() || roles().hasAny(['manage_banners']); }
+    function canManageXerox()     { return isAdmin() || roles().hasAny(['manage_xerox']); }
+    function canManageCoupons()   { return isAdmin() || roles().hasAny(['manage_coupons']); }
+
+    // Coupon / wallet records an order may rely on. An online order may use a
+    // 'pending' record (confirmed when payment succeeds); a COD order only a
+    // 'redeemed' one, otherwise an unpaid online hold could be released later
+    // while the COD order keeps the discount.
+    function usableRecordStatuses(d) {
+      return d.get('paymentMethod', 'COD') == 'COD' ? ['redeemed'] : ['redeemed', 'pending'];
+    }
+
+    // Items / documents, subtotal and delivery fee must equal the quote the
+    // Node server priced for this checkout (POST /api/orders/quote).
+    function matchesQuote(d) {
+      let q = get(/databases/$(database)/documents/order_quotes/$(d.get('groupOrderId', '_'))).data;
+      let g = q.groups[d.get('shopId', '_')];
+      return q.userId == request.auth.uid
+        && q.type == d.get('type', 'product')
+        && d.get('subtotal', -1) == g.subtotal
+        && d.get('deliveryFee', 0) == g.deliveryFee
+        && (q.type == 'xerox'
+              ? d.get('documents', []) == g.documents
+              : d.get('items', []) == g.items);
+    }
+
+    // An order may carry a discount only if the server recorded a matching
+    // redemption for this user + checkout, and the totals still add up.
+    function validCouponOnOrder(d) {
+      return d.get('discountAmount', 0) == 0
+        || (d.get('couponCode', null) is string
+            && exists(/databases/$(database)/documents/coupon_usages/$(d.get('groupOrderId', '') + '__' + d.couponCode))
+            && get(/databases/$(database)/documents/coupon_usages/$(d.get('groupOrderId', '') + '__' + d.couponCode)).data.userId == request.auth.uid
+            && get(/databases/$(database)/documents/coupon_usages/$(d.get('groupOrderId', '') + '__' + d.couponCode)).data.status in usableRecordStatuses(d)
+            && d.discountAmount <= get(/databases/$(database)/documents/coupon_usages/$(d.get('groupOrderId', '') + '__' + d.couponCode)).data.discountAmount
+            && d.get('totalAmount', 0) >= d.get('subtotal', 0) - d.discountAmount - d.get('walletAmount', 0) + d.get('deliveryFee', 0) - 0.01);
+    }
+
+    // Wallet money on an order must be backed by a server-written wallet hold
+    // (wallet_usages/{groupOrderId}, created by /api/wallet/redeem) for this user,
+    // can't exceed what was held, and must leave at least ₹1 payable.
+    function validWalletOnOrder(d) {
+      return d.get('walletAmount', 0) == 0
+        || (d.get('groupOrderId', null) is string
+            && exists(/databases/$(database)/documents/wallet_usages/$(d.groupOrderId))
+            && get(/databases/$(database)/documents/wallet_usages/$(d.groupOrderId)).data.userId == request.auth.uid
+            && get(/databases/$(database)/documents/wallet_usages/$(d.groupOrderId)).data.status in usableRecordStatuses(d)
+            && d.walletAmount <= get(/databases/$(database)/documents/wallet_usages/$(d.groupOrderId)).data.amount
+            && d.walletAmount <= d.get('subtotal', 0) - d.get('discountAmount', 0) + d.get('deliveryFee', 0)
+            && d.get('totalAmount', 0) >= d.get('subtotal', 0) - d.get('discountAmount', 0) - d.walletAmount + d.get('deliveryFee', 0) - 0.01);
+    }
+
+    // ── Payment config helper ──────────────────────────────────────────────
+    // Reads /config/payment and checks whether `method` is allowed by the
+    // current mode.  Falls back to 'both' if the doc doesn't exist yet so
+    // orders are never silently blocked during initial setup.
+    //
+    // Accepted method values (what checkout pages submit):
+    //   'COD'      — cash on delivery
+    //   'razorpay' — full online payment
+    //   'partial'  — partial deposit via Razorpay
+    //
+    // Mode → allowed methods:
+    //   cod_only       → COD only
+    //   online_only    → razorpay only
+    //   both           → COD or razorpay
+    //   partial_online → partial or COD (user pays deposit online, rest on delivery)
+    function paymentMode() {
+      let cfgPath = /databases/$(database)/documents/config/payment;
+      return exists(cfgPath)
+        ? get(cfgPath).data.get('mode', 'both')
+        : 'both';
+    }
+
+    function canUsePaymentMethod(method) {
+      let mode = paymentMode();
+      return (mode == 'cod_only'       && method == 'COD')
+          || (mode == 'online_only'    && method == 'razorpay')
+          || (mode == 'both'           && method in ['COD', 'razorpay'])
+          || (mode == 'partial_online' && method in ['partial', 'COD', 'razorpay']);
+    }
+
+    // Is the caller listed as owner or employee of a shop?
+    function isShopMember(shopId) {
+      let shop = get(/databases/$(database)/documents/shops/$(shopId)).data;
+      return shop.get('owners', []).hasAny([request.auth.uid])
+          || shop.get('employees', []).hasAny([request.auth.uid]);
+    }
+
+    // Seller or employee assigned to this shop (shops/{id}.owners / .employees)
+    function isShopStaff(shopId) {
+      return (isSeller() || isEmployee()) && isShopMember(shopId);
+    }
+
+    function isPendingOrder(o) {
+      return o.get('status', 'Pending') in ['Pending', 'pending'];
+    }
+
+    // The only change a customer may make to their own order directly: cancel it
+    // while it is still Pending. Removing an item or attaching a file later goes
+    // through the Node server (/api/orders/cancel-item, /attach-file), which
+    // recomputes the totals — rules can't add up a list. Status, amounts and
+    // payment fields are otherwise set by staff or the server; cashback and
+    // referral rewards are paid from them.
+    function isCustomerOrderUpdate() {
+      return resource.data.userId == request.auth.uid
+        && isPendingOrder(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && request.resource.data.status == 'Cancelled';
+    }
+
+    // ═══════════════════════════════════════════════
+    //  USERS
+    //  - Anyone can read their own doc
+    //  - Users can update their own safe fields only
+    //  - Admins can read/write all user docs
+    // ═══════════════════════════════════════════════
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // New user registration — only the user themselves can create their own doc,
+      // and only as a plain customer (staff roles are granted by an admin later)
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+             'fullName','email','phone','mobileNumber','altMobiles',
+             'addresses','userId','role','roles','createdAt',
+             'fcmTokens','notificationsEnabled','photoURL'
+           ])
+        && request.resource.data.get('role', 'user') == 'user'
+        && request.resource.data.get('roles', ['user']) == ['user'];
+
+      // Users can update their own profile fields (cannot self-promote roles)
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['roles','role','userShops','referralCode','referredBy','referredByCode'])
+        || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  ORDERS
+    //  - Users can create orders and read their own
+    //  - Sellers/employees can read orders for their shop
+    //  - Admins have full access
+    // ═══════════════════════════════════════════════
+    match /orders/{orderId} {
+      // User reads their own orders; staff reads by shopId (enforced via query filter client-side)
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid
+            || isAdmin()
+            || isShopStaff(resource.data.shopId));
+
+      // Authenticated users can create orders (userId must match caller)
+      // paymentStatus can be 'pending' or 'cod' on create — Node server sets 'paid'
+      // paymentMethod must match the current global payment config
+      // Any coupon discount must be backed by a server-written coupon_usages
+      // record (created by /api/coupon/redeem) for this user and checkout.
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('status', 'Pending') == 'Pending'
+        && request.resource.data.get('amountPaid', 0) == 0
+        && !request.resource.data.keys().hasAny(['cashbackCredited', 'walletRefunded',
+                                                 'paidAt', 'razorpayPaymentId'])
+        && request.resource.data.get('paymentStatus', 'pending') in ['pending', 'cod']
+        && canUsePaymentMethod(request.resource.data.get('paymentMethod', 'COD'))
+        && matchesQuote(request.resource.data)
+        && validCouponOnOrder(request.resource.data)
+        && validWalletOnOrder(request.resource.data);
+
+      // Status updates by admin, seller, or employee of that shop.
+      // Customers are limited to isCustomerOrderUpdate(); payment fields are
+      // written only by the Node server (Admin SDK).
+      allow update: if isAdmin()
+        || isShopStaff(resource.data.shopId)
+        || (isAuth() && isCustomerOrderUpdate());
+
+      // Only admins can delete orders
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  ORDER STATUS (shadow collection)
+    //  Same rules as orders — mirrors the parent order
+    // ═══════════════════════════════════════════════
+    match /order_status/{orderId} {
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid
+            || isAdmin()
+            || isShopStaff(resource.data.shopId));
+
+      // Starts as Pending — after that only staff move it (the server trusts
+      // this doc's status for cashback and referral rewards)
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('status', 'Pending') == 'Pending';
+
+      allow update: if isAdmin()
+        || isShopStaff(resource.data.shopId)
+        // The customer may cancel their own order while it is still Pending
+        || (isAuth()
+            && resource.data.userId == request.auth.uid
+            && isPendingOrder(resource.data)
+            && request.resource.data.status == 'Cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'updatedAt', 'lastUpdatedBy']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  SHOPS
+    //  - Anyone can read active shops (needed for checkout, categories)
+    //  - Sellers/employees can update their own shop
+    //  - Authenticated customers can increment newOrdersCount on order placement
+    //  - Only admins can create or delete shops
+    // ═══════════════════════════════════════════════
+    match /shops/{shopId} {
+      allow read: if true;   // public — needed for listings and order checkout
+
+      allow create: if isAdmin();
+
+      allow update: if isAdmin()
+        || (isAuth() && isShopMember(shopId))
+        || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['newOrdersCount']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  STATES, DISTRICTS & CITIES
+    //  - Public read (needed for shop location dropdowns)
+    //  - Admin write only
+    // ═══════════════════════════════════════════════
+    match /states/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /districts/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /cities/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  ITEMS & CATEGORY DATA
+    //  - Public read (product listings)
+    //  - Write only for admins or manage_items employees
+    // ═══════════════════════════════════════════════
+    match /items/{itemId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    match /categoryData/{docId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  CATEGORIES
+    //  - Public read
+    //  - Admin/manage_items write
+    // ═══════════════════════════════════════════════
+    match /categories/{docId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  METADATA & ITEM ATTRIBUTES
+    //  - Public read (filter chips, attribute lists)
+    //  - Admin/manage_items write
+    // ═══════════════════════════════════════════════
+    match /metadata/{docId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    match /itemAttributes/{docId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  XEROX CONFIG
+    //  - Public read (needed for xerox order page)
+    //  - Admin/manage_xerox write
+    // ═══════════════════════════════════════════════
+    match /xerox_config_paper/{docId} {
+      allow read: if true;
+      allow write: if canManageXerox();
+    }
+
+    match /xerox_config_binding/{docId} {
+      allow read: if true;
+      allow write: if canManageXerox();
+    }
+
+    match /xerox_config_lamination/{docId} {
+      allow read: if true;
+      allow write: if canManageXerox();
+    }
+
+    match /xerox_services/{docId} {
+      allow read: if true;
+      allow write: if canManageXerox();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  SITE BANNERS & SITE CONFIG
+    //  - Public read
+    //  - Admin/manage_banners write
+    // ═══════════════════════════════════════════════
+    match /site_banners/{docId} {
+      allow read: if true;
+      allow write: if canManageBanners();
+    }
+
+    match /site_config/{docId} {
+      allow read: if true;
+      allow write: if canManageBanners();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  GLOBAL CONFIG
+    //  Catch-all for /config/{docId} documents.
+    //  Currently contains:
+    //    config/payment  — payment mode settings
+    //
+    //  Read:  public (KV worker + user checkout pages
+    //         both need this without auth)
+    //  Write: admin only, with field-level validation
+    //         on the payment doc to prevent corrupt state.
+    // ═══════════════════════════════════════════════
+    match /config/payment {
+      allow read: if true;
+
+      // Validate every write so the config can never enter a broken state.
+      // Required fields: mode (one of 4 values), onlineDepositPercent (1-99),
+      // version (positive int), applyToCart and applyToXerox (booleans).
+      allow write: if isAdmin()
+        && request.resource.data.mode in
+             ['cod_only', 'online_only', 'both', 'partial_online']
+        && request.resource.data.onlineDepositPercent is int
+        && request.resource.data.onlineDepositPercent >= 1
+        && request.resource.data.onlineDepositPercent <= 99
+        && request.resource.data.version is int
+        && request.resource.data.version >= 1
+        && request.resource.data.applyToCart is bool
+        && request.resource.data.applyToXerox is bool;
+    }
+
+    // All other /config/* documents — public read, admin write, no field rules
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  PRODUCT REQUESTS
+    //  - Authenticated users can create and read their own
+    //  - Admin/manage_requests can read and update all
+    // ═══════════════════════════════════════════════
+    match /product_requests/{docId} {
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || canManageRequests());
+
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if canManageRequests();
+
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  SUPPORT QUERIES / TICKETS
+    //  - Auth users can create and read their own
+    //  - Admin/manage_support can read and update all
+    // ═══════════════════════════════════════════════
+    match /support_queries/{docId} {
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || canManageSupport());
+
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if canManageSupport();
+
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  CLOUDINARY IMAGE REGISTRY
+    //  - Admin read/write only (used by admin-cloud.js)
+    // ═══════════════════════════════════════════════
+    match /cloudinary_images/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  PAYMENTS & RECEIPTS
+    //  - Users can read their own payment records
+    //  - Only the Node backend (Firebase Admin SDK)
+    //    writes these — client write is blocked
+    //  - Admins can read all
+    // ═══════════════════════════════════════════════
+    match /payments/{docId} {
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // No client writes — all writes come from Node server via Admin SDK
+      allow write: if false;
+    }
+
+    match /payment_receipts/{docId} {
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // No client writes — written by Node server only
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  COUPONS
+    //  - Admin / manage_coupons: full CRUD (doc id = UPPERCASE code)
+    //  - Users never read coupons directly; the Node server
+    //    validates/redeems via /api/coupon/* (Admin SDK)
+    //  - Usage records are written by the server only
+    // ═══════════════════════════════════════════════
+    match /coupons/{code} {
+      allow read, write: if canManageCoupons();
+    }
+
+    match /coupon_usages/{docId} {
+      allow read: if canManageCoupons()
+        || (isAuth() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // Server-priced checkout quotes (POST /api/orders/quote) — written only by the server
+    match /order_quotes/{groupOrderId} {
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /coupon_user_usage/{docId} {
+      allow read: if canManageCoupons();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  WALLET & REFERRALS
+    //  - Everything below is written ONLY by the Node server (Admin SDK):
+    //    balances, ledger, checkout holds, referral codes and referral links
+    //  - Users can read their own wallet / ledger / holds / referrals
+    //  - Admins can read everything (settings live in config/wallet and
+    //    config/referral, covered by the /config/{docId} rule above)
+    // ═══════════════════════════════════════════════
+    match /wallets/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+
+      match /transactions/{txnId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if false;
+      }
+    }
+
+    match /wallet_usages/{docId} {
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /wallet_stats/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /referral_codes/{code} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /referrals/{refereeUid} {
+      allow read: if isAuth()
+        && (resource.data.refereeUid == request.auth.uid
+            || resource.data.referrerUid == request.auth.uid
+            || isAdmin());
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  SENT NOTIFICATIONS LOG
+    //  - Admin read only
+    //  - Written by Cloudflare Worker / Node backend
+    // ═══════════════════════════════════════════════
+    match /sent_notifications/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  FCM TOKENS (push notifications)
+    //  - Users manage their own tokens only
+    // ═══════════════════════════════════════════════
+    match /fcm_tokens/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  DENY EVERYTHING ELSE
+    //  Any collection not listed above is blocked
+    // ═══════════════════════════════════════════════
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

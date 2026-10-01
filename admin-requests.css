@@ -1,0 +1,373 @@
+/* ═══════════════════════════════════════════════
+   JASA V2 — Admin Requests & Support Shared CSS
+   Used by: admin-product-requests.html
+            admin-support.html
+   ═══════════════════════════════════════════════ */
+
+/* ════ FILTER BAR ════ */
+.ar-filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ar-select {
+    height: 38px;
+    padding: 0 14px;
+    border: 1.5px solid var(--border2);
+    border-radius: 50px;
+    background: var(--bg-white);
+    color: var(--txt1);
+    font-family: inherit;
+    font-size: .76rem;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    transition: border-color var(--ease);
+}
+.ar-select:focus { border-color: var(--primary); }
+
+/* ════ REQUEST / QUERY CARD ════ */
+.ar-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--sh-sm);
+    transition: box-shadow var(--ease), border-color var(--ease);
+}
+.ar-card:last-child { margin-bottom: 0; }
+.ar-card:hover {
+    box-shadow: var(--sh-md);
+    border-color: var(--border2);
+}
+
+/* ── Card header row ── */
+.ar-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.ar-card-title {
+    font-size: .88rem;
+    font-weight: 800;
+    color: var(--txt1);
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+}
+.ar-card-title small {
+    display: block;
+    font-size: .68rem;
+    font-weight: 600;
+    color: var(--txt3);
+    margin-top: 3px;
+}
+
+/* ── Status badge ── */
+.ar-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 50px;
+    font-size: .62rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.ar-badge-pending   { background: #fef3c7; color: #b45309; }
+.ar-badge-reviewed  { background: #deeeff; color: var(--primary); }
+.ar-badge-completed { background: #dcfce7; color: #16a34a; }
+.ar-badge-open      { background: #fef3c7; color: #b45309; }
+.ar-badge-replied   { background: #deeeff; color: var(--primary); }
+.ar-badge-closed    { background: #dcfce7; color: #16a34a; }
+
+/* ── Meta row ── */
+.ar-meta {
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--txt3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.ar-meta i { margin-right: 3px; }
+
+/* ── Contact strip ── */
+.ar-contact {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    background: var(--bg);
+    border-radius: var(--r-xs);
+    margin-bottom: 8px;
+}
+.ar-contact-num {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--txt2);
+}
+.ar-contact-num i { color: #16a34a; }
+
+.ar-contact-no-mobile {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .68rem;
+    font-weight: 700;
+    color: #b45309;
+    background: #fef3c7;
+    padding: 4px 10px;
+    border-radius: 50px;
+}
+
+/* ── Small icon action buttons ── */
+.ar-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .78rem;
+    cursor: pointer;
+    border: none;
+    flex-shrink: 0;
+    transition: background var(--ease), transform var(--ease), box-shadow var(--ease);
+}
+.ar-icon-btn:active { transform: scale(.88); }
+
+.ar-icon-btn--call { background: #dcfce7; color: #16a34a; }
+.ar-icon-btn--wa   { background: #dcfce7; color: #16a34a; }
+.ar-icon-btn--mail { background: var(--primary-light); color: var(--primary); }
+.ar-icon-btn--del  { background: #fee2e2; color: #dc2626; }
+
+.ar-icon-btn--call:hover { background: #16a34a; color: #fff; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
+.ar-icon-btn--wa:hover   { background: #16a34a; color: #fff; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
+.ar-icon-btn--mail:hover { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(45,140,240,.3); }
+.ar-icon-btn--del:hover  { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220,38,38,.3); }
+
+/* ── Message / description body ── */
+.ar-body {
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--txt2);
+    line-height: 1.55;
+    padding: 9px 11px;
+    background: var(--bg);
+    border-radius: var(--r-xs);
+    margin-bottom: 10px;
+}
+
+/* ── Admin reply block ── */
+.ar-reply-block {
+    font-size: .76rem;
+    font-weight: 500;
+    color: var(--primary);
+    background: var(--primary-faint);
+    border: 1px solid var(--primary-light);
+    border-radius: var(--r-xs);
+    padding: 8px 11px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+.ar-reply-block strong {
+    font-weight: 800;
+    margin-right: 4px;
+}
+
+/* ── Actions row ── */
+.ar-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ── Status select inside card ── */
+.ar-status-select {
+    height: 32px;
+    padding: 0 12px;
+    border: 1.5px solid var(--border2);
+    border-radius: 50px;
+    background: var(--bg-white);
+    color: var(--txt1);
+    font-family: inherit;
+    font-size: .72rem;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    transition: border-color var(--ease);
+}
+.ar-status-select:focus { border-color: var(--primary); }
+
+/* ── Urgency dot chip ── */
+.ar-urgency {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 50px;
+    font-size: .64rem;
+    font-weight: 800;
+}
+.ar-urgency-high   { background: #fee2e2; color: #dc2626; }
+.ar-urgency-medium { background: #fef3c7; color: #b45309; }
+.ar-urgency-low    { background: #dcfce7; color: #16a34a; }
+
+/* ── Alt mobiles ── */
+.ar-alt-mobiles {
+    font-size: .65rem;
+    font-weight: 600;
+    color: var(--txt3);
+}
+
+/* ════ SO SHEET (reply bottom sheet) ════
+   Reuse seller-order-details sheet styles
+   if they exist; define fallback here.      */
+.so-sheet-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    backdrop-filter: blur(3px);
+    z-index: 900;
+    opacity: 0; pointer-events: none;
+    transition: opacity .22s ease;
+}
+.so-sheet-overlay.open { opacity: 1; pointer-events: all; }
+
+.so-sheet {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--bg-white);
+    border-radius: 20px 20px 0 0;
+    z-index: 901;
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+.so-sheet.open { transform: translateY(0); }
+
+.so-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border);
+}
+.so-sheet-title {
+    font-size: .9rem;
+    font-weight: 800;
+    color: var(--txt1);
+}
+.so-sheet-sub {
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--txt3);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+}
+.so-sheet-close {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--txt2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    flex-shrink: 0;
+    transition: background var(--ease);
+}
+.so-sheet-close:hover { background: var(--border); }
+
+.so-sheet-body {
+    padding: 14px 18px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.so-sheet-footer {
+    display: flex;
+    gap: 10px;
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom,0px));
+    border-top: 1px solid var(--border);
+}
+.so-btn-ghost {
+    flex: 1; height: 44px;
+    border-radius: 50px;
+    border: 1.5px solid var(--border2);
+    background: var(--bg);
+    color: var(--txt2);
+    font-family: inherit;
+    font-size: .84rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--ease);
+}
+.so-btn-ghost:hover { background: var(--border); }
+
+.so-btn-primary {
+    flex: 1; height: 44px;
+    border-radius: 50px;
+    border: none;
+    background: var(--primary);
+    color: #fff;
+    font-family: inherit;
+    font-size: .84rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    box-shadow: 0 4px 14px rgba(45,140,240,.3);
+    transition: opacity var(--ease);
+}
+.so-btn-primary:hover { opacity: .9; }
+.so-btn-flex { flex: 1; }
+
+/* ── Reply textarea ── */
+.ar-reply-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 12px;
+    border: 1.5px solid var(--border2);
+    border-radius: var(--r-sm);
+    font-family: inherit;
+    font-size: .84rem;
+    resize: vertical;
+    background: var(--bg-white);
+    color: var(--txt1);
+    outline: none;
+    transition: border-color var(--ease), box-shadow var(--ease);
+}
+.ar-reply-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(45,140,240,.1);
+}
+
+/* ── header-icon-btn (home shortcut in header) ── */
+.header-icon-btn {
+    width: 36px; height: 36px;
+    border-radius: var(--r-xs);
+    background: var(--bg);
+    color: var(--txt2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .9rem;
+    transition: background var(--ease), color var(--ease);
+    text-decoration: none;
+}
+.header-icon-btn:hover { background: var(--primary-light); color: var(--primary); }

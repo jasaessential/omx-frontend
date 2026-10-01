@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Account — JASA Essential</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="profile.css">
+    <link rel="stylesheet" href="settings.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+    <style>
+        /* ── Page header — red variant ── */
+        .da-page-header {
+            background: linear-gradient(135deg, #b91c1c 0%, #ef4444 60%, #f87171 100%);
+            border-radius: 20px;
+            padding: 20px 20px 24px;
+            margin-bottom: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .da-page-header .st-page-header-orb { background: rgba(255,255,255,.10); }
+
+        /* ── Warning box ── */
+        .da-warning {
+            background: rgba(239,68,68,.07);
+            border: 1.5px solid rgba(239,68,68,.2);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        .da-warning i { color: #ef4444; font-size: 1rem; flex-shrink: 0; margin-top: 2px; }
+        .da-warning p { font-size: .82rem; color: #7f1d1d; line-height: 1.55; font-weight: 600; }
+
+        /* ── What gets deleted list ── */
+        .da-what {
+            background: var(--bg, #f2f4f8);
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 20px;
+        }
+        .da-what-title {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--txt3);
+            margin-bottom: 10px;
+        }
+        .da-what-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: .83rem;
+            color: var(--txt2);
+            font-weight: 600;
+        }
+        .da-what-item:last-child { border-bottom: none; }
+        .da-what-item i {
+            width: 28px; height: 28px;
+            background: #fee2e2;
+            color: #ef4444;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .75rem;
+            flex-shrink: 0;
+        }
+
+        /* ── Divider ── */
+        .da-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+        .da-divider::before, .da-divider::after {
+            content: ''; flex: 1; height: 1px; background: var(--border);
+        }
+        .da-divider span { font-size: .75rem; color: var(--txt3); white-space: nowrap; font-weight: 600; }
+
+        /* ── Form fields (reuse settings sheet styles) ── */
+        .da-card {
+            background: var(--bg-white);
+            border: 1.5px solid rgba(239,68,68,.2);
+            border-radius: 18px;
+            overflow: hidden;
+            margin-bottom: 14px;
+            box-shadow: var(--sh-sm);
+        }
+        .da-card-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .da-card-head-icon {
+            width: 38px; height: 38px;
+            border-radius: 11px;
+            background: #fee2e2;
+            color: #ef4444;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .95rem; flex-shrink: 0;
+        }
+        .da-card-title { font-size: .92rem; font-weight: 800; color: #ef4444; }
+        .da-card-sub   { font-size: .68rem; font-weight: 600; color: var(--txt3); margin-top: 1px; }
+        .da-card-body  { padding: 16px; }
+
+        /* ── Loading / success panels ── */
+        .da-loading {
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; padding: 24px 0;
+            color: var(--txt3); font-size: .88rem; font-weight: 600;
+        }
+        .da-success {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 28px 16px;
+            gap: 10px;
+        }
+        .da-success-icon {
+            width: 68px; height: 68px;
+            background: #dcfce7; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; color: #16a34a;
+            margin-bottom: 4px;
+        }
+        .da-success-title { font-size: 1.05rem; font-weight: 800; color: var(--txt1); }
+        .da-success-sub   { font-size: .82rem; color: var(--txt3); line-height: 1.55; }
+
+        /* ── Signed-in info strip ── */
+        .da-user-strip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg, #f2f4f8);
+            border-radius: 11px;
+            padding: 11px 14px;
+            margin-bottom: 18px;
+            font-size: .82rem;
+            font-weight: 600;
+            color: var(--txt2);
+        }
+        .da-user-strip i { color: var(--primary); font-size: .9rem; }
+        .da-user-strip strong { color: var(--txt1); }
+
+        /* ── Delete confirm button ── */
+        .da-btn-delete {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 13px;
+            border-radius: 13px;
+            border: none;
+            background: #ef4444;
+            color: #fff;
+            font-family: inherit;
+            font-size: .9rem;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 4px;
+            transition: background .15s, opacity .15s;
+        }
+        .da-btn-delete:not(:disabled):hover { background: #dc2626; }
+        .da-btn-delete:disabled { opacity: .45; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <!-- ════ SIDEBAR OVERLAY ════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="sbIdentity"></div>
+        <nav class="sidebar-nav" id="sbNav"></nav>
+    </aside>
+
+    <!-- ════ HEADER ════ -->
+    <header class="header" id="mainHeader">
+        <div class="header-inner">
+            <div class="header-left">
+                <button class="hamburger" onclick="openSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <a href="cart.html" class="header-cart-btn" id="headerCartBtn">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span class="header-cart-badge" id="headerCartBadge" style="display:none;"></span>
+                </a>
+                <a href="login.html" class="header-login-btn" id="headerLoginBtn">
+                    <i class="fa-regular fa-user"></i>
+                    <span>Login</span>
+                </a>
+                <a href="profile.html" class="header-avatar-wrap" id="headerAvatarWrap"
+                   style="display:none;" title="My Account">
+                    <i class="fa-solid fa-user header-avatar-icon" id="headerAvatarIcon"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ════ MAIN ════ -->
+    <main class="main-content">
+    <div class="page-wrap st-wrap">
+
+        <!-- ── PAGE HEADER ── -->
+        <div class="st-page-header da-page-header">
+            <div class="st-page-header-orb st-orb1"></div>
+            <div class="st-page-header-orb st-orb2"></div>
+            <a href="settings.html" class="st-back-btn">
+                <i class="fa-solid fa-arrow-left"></i> Back
+            </a>
+            <div class="st-page-header-content">
+                <div class="st-page-header-icon">
+                    <i class="fa-solid fa-user-xmark"></i>
+                </div>
+                <div>
+                    <h1 class="st-page-title">Delete Account</h1>
+                    <p class="st-page-sub">Permanently remove your account and all data</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── MAIN CARD ── -->
+        <div class="da-card">
+            <div class="da-card-head">
+                <div class="da-card-head-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <div class="da-card-title">Danger Zone</div>
+                    <div class="da-card-sub">This action is permanent and cannot be undone</div>
+                </div>
+            </div>
+            <div class="da-card-body">
+
+                <!-- Loading -->
+                <div class="da-loading" id="daLoading">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Checking your session…
+                </div>
+
+                <!-- Main form (shown for both logged-in and logged-out) -->
+                <div id="daForm" style="display:none;">
+
+                    <!-- Signed-in user strip (shown only when logged in) -->
+                    <div class="da-user-strip" id="daUserStrip" style="display:none;">
+                        <i class="fa-solid fa-circle-user"></i>
+                        <span>Signed in as <strong id="daUserEmail"></strong></span>
+                    </div>
+
+                    <div class="da-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <p>Deleting your account is <strong>permanent and irreversible.</strong> All your orders, addresses, and personal data will be erased immediately and cannot be recovered.</p>
+                    </div>
+
+                    <div class="da-what">
+                        <div class="da-what-title">What will be deleted</div>
+                        <div class="da-what-item">
+                            <i class="fa-solid fa-user"></i>
+                            Account profile &amp; login credentials
+                        </div>
+                        <div class="da-what-item">
+                            <i class="fa-solid fa-file-lines"></i>
+                            All order history
+                        </div>
+                        <div class="da-what-item">
+                            <i class="fa-solid fa-location-dot"></i>
+                            Saved addresses
+                        </div>
+                        <div class="da-what-item">
+                            <i class="fa-solid fa-sliders"></i>
+                            Preferences &amp; app data
+                        </div>
+                    </div>
+
+                    <div class="da-divider"><span>Confirm your identity to proceed</span></div>
+
+                    <!-- Email field — shown only when not logged in -->
+                    <div class="st-field" id="daEmailField" style="display:none;">
+                        <label class="st-field-label">Email address</label>
+                        <input type="email" id="daEmail" class="st-input"
+                               placeholder="you@example.com" autocomplete="email"
+                               oninput="daCheckInputs()">
+                    </div>
+
+                    <div class="st-field">
+                        <label class="st-field-label">Password</label>
+                        <div class="st-input-wrap">
+                            <input type="password" id="daPassword" class="st-input"
+                                   placeholder="Your account password"
+                                   oninput="daCheckInputs()">
+                            <button class="st-input-eye" type="button"
+                                    onclick="daTogglePass()" aria-label="Toggle password visibility">
+                                <i class="fa-regular fa-eye" id="daEyeIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="st-field">
+                        <label class="st-field-label">Type <strong style="color:#ef4444;">DELETE</strong> to confirm</label>
+                        <input type="text" id="daConfirm" class="st-input"
+                               placeholder="DELETE" autocomplete="off"
+                               autocorrect="off" spellcheck="false"
+                               oninput="daCheckInputs()">
+                    </div>
+
+                    <button class="da-btn-delete" id="daDeleteBtn"
+                            onclick="daSubmitDelete()" disabled>
+                        <i class="fa-solid fa-trash-can"></i> Permanently Delete My Account
+                    </button>
+
+                </div><!-- /#daForm -->
+
+                <!-- Success state -->
+                <div class="da-success" id="daSuccess">
+                    <div class="da-success-icon"><i class="fa-solid fa-check"></i></div>
+                    <div class="da-success-title">Account Deleted</div>
+                    <p class="da-success-sub">
+                        Your account and all associated data have been permanently removed.<br>
+                        We're sorry to see you go.
+                    </p>
+                </div>
+
+            </div><!-- /.da-card-body -->
+        </div><!-- /.da-card -->
+
+        <div style="height:16px;"></div>
+    </div>
+    </main>
+
+    <!-- ════ BOTTOM NAV ════ -->
+    <nav class="bottom-nav" id="bottomNav">
+        <a href="index.html"       class="bottom-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+        <a href="xerox-order.html" class="bottom-nav-item"><i class="fa-solid fa-print"></i><span>Xerox</span></a>
+        <a href="categories.html"  class="bottom-nav-item"><i class="fa-solid fa-border-all"></i><span>Categories</span></a>
+        <a href="orders.html"      class="bottom-nav-item"><i class="fa-solid fa-file-lines"></i><span>Orders</span></a>
+        <a href="profile.html"     class="bottom-nav-item active"><i class="fa-regular fa-user"></i><span>Account</span></a>
+    </nav>
+
+    <!-- ════ TOAST ════ -->
+    <div class="pf-toast" id="pfToast"></div>
+
+    <script src="app.js"></script>
+    <script type="module" src="auth-header.js"></script>
+    <script type="module">
+        import { auth, db } from './firebase-init.js';
+        import {
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            EmailAuthProvider,
+            reauthenticateWithCredential,
+            deleteUser
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import {
+            doc, deleteDoc
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        let currentUser = null;
+
+        /* ── Auth state ── */
+        onAuthStateChanged(auth, user => {
+            currentUser = user;
+            document.getElementById('daLoading').style.display = 'none';
+            document.getElementById('daForm').style.display    = 'block';
+
+            if (user) {
+                /* Logged in — show email strip, hide email field */
+                document.getElementById('daUserStrip').style.display = 'flex';
+                document.getElementById('daUserEmail').textContent   = user.email;
+                document.getElementById('daEmailField').style.display = 'none';
+            } else {
+                /* Logged out — hide strip, show email field */
+                document.getElementById('daUserStrip').style.display  = 'none';
+                document.getElementById('daEmailField').style.display = 'block';
+            }
+
+            daCheckInputs();
+        });
+
+        /* ── Input validation ── */
+        window.daCheckInputs = function() {
+            const pass    = document.getElementById('daPassword')?.value    || '';
+            const confirm = document.getElementById('daConfirm')?.value     || '';
+            const email   = document.getElementById('daEmail')?.value.trim() || '';
+            const btn     = document.getElementById('daDeleteBtn');
+            if (!btn) return;
+
+            const emailOk = currentUser ? true : email.length > 0;
+            btn.disabled  = !(emailOk && pass.length > 0 && confirm === 'DELETE');
+        };
+
+        /* ── Toggle password visibility ── */
+        window.daTogglePass = function() {
+            const input = document.getElementById('daPassword');
+            const icon  = document.getElementById('daEyeIcon');
+            if (!input) return;
+            const hidden   = input.type === 'password';
+            input.type     = hidden ? 'text' : 'password';
+            icon.className = hidden ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+        };
+
+        /* ── Submit delete ── */
+        window.daSubmitDelete = async function() {
+            const pass    = document.getElementById('daPassword')?.value     || '';
+            const confirm = document.getElementById('daConfirm')?.value      || '';
+            const email   = currentUser?.email
+                          || document.getElementById('daEmail')?.value.trim() || '';
+
+            if (confirm !== 'DELETE') { showToast('Type DELETE exactly to confirm.', 'error'); return; }
+            if (!pass)                { showToast('Enter your password.', 'error'); return; }
+            if (!email)               { showToast('Enter your email address.', 'error'); return; }
+
+            const btn = document.getElementById('daDeleteBtn');
+            if (btn) {
+                btn.disabled  = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting…';
+            }
+
+            try {
+                let user = currentUser;
+
+                /* If not logged in, sign in first */
+                if (!user) {
+                    const cred = await signInWithEmailAndPassword(auth, email, pass);
+                    user = cred.user;
+                }
+
+                /* Re-authenticate to satisfy Firebase recent-login requirement */
+                const credential = EmailAuthProvider.credential(email, pass);
+                await reauthenticateWithCredential(user, credential);
+
+                /* Delete Firestore user document (non-fatal) */
+                try { await deleteDoc(doc(db, 'users', user.uid)); } catch (_) {}
+
+                /* Delete Firebase Auth account */
+                await deleteUser(user);
+
+                /* Wipe local data */
+                localStorage.clear();
+                sessionStorage.clear();
+
+                /* Show success state */
+                document.getElementById('daForm').style.display    = 'none';
+                document.getElementById('daSuccess').style.display = 'flex';
+                showToast('Account permanently deleted.', 'success');
+
+            } catch (err) {
+                console.error('Delete error:', err);
+
+                let msg = 'Failed to delete account. Please try again.';
+                if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                    msg = 'Incorrect password. Please try again.';
+                } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
+                    msg = 'No account found with that email.';
+                } else if (err.code === 'auth/too-many-requests') {
+                    msg = 'Too many attempts. Please wait a moment.';
+                } else if (err.code === 'auth/requires-recent-login') {
+                    msg = 'Session expired. Please log out and log back in first.';
+                }
+
+                showToast(msg, 'error');
+
+                if (btn) {
+                    btn.disabled  = false;
+                    btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Permanently Delete My Account';
+                }
+                daCheckInputs();
+            }
+        };
+
+        /* ── Toast ── */
+        let _t;
+        function showToast(msg, type = 'info') {
+            const el = document.getElementById('pfToast');
+            if (!el) return;
+            clearTimeout(_t);
+            el.textContent = msg;
+            el.className   = `pf-toast ${type} show`;
+            _t = setTimeout(() => el.classList.remove('show'), 2800);
+        }
+    </script>
+</body>
+</html>

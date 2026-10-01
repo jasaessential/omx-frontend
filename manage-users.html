@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="manage-users.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+    <!-- ════ SIDEBAR OVERLAY ════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="sbIdentity"></div>
+        <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+    <!-- ════ HEADER ════ -->
+    <header class="header" id="mainHeader">
+        <div class="header-inner">
+            <div class="header-left">
+                <button class="hamburger" onclick="openSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <span class="mu-page-title"><i class="fa-solid fa-users-gear"></i> Manage Users</span>
+            </div>
+            <div class="header-right">
+                <a href="index.html" class="header-icon-btn" title="Home">
+                    <i class="fa-solid fa-house"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ════ MAIN ════ -->
+    <main class="main-content">
+        <div class="page-wrap mu-wrap">
+
+            <!-- ── Stats Cards ── -->
+            <div class="mu-stats-grid" id="statsGrid">
+                <div class="mu-stat-card mu-stat-card--blue">
+                    <div class="mu-stat-icon"><i class="fa-solid fa-users"></i></div>
+                    <div class="mu-stat-info">
+                        <div class="mu-stat-value" id="statTotal">—</div>
+                        <div class="mu-stat-label">Total Users</div>
+                    </div>
+                </div>
+                <div class="mu-stat-card mu-stat-card--grey">
+                    <div class="mu-stat-icon"><i class="fa-solid fa-user"></i></div>
+                    <div class="mu-stat-info">
+                        <div class="mu-stat-value" id="statUsers">—</div>
+                        <div class="mu-stat-label">User Role Only</div>
+                    </div>
+                </div>
+                <div class="mu-stat-card mu-stat-card--green">
+                    <div class="mu-stat-icon"><i class="fa-solid fa-id-badge"></i></div>
+                    <div class="mu-stat-info">
+                        <div class="mu-stat-value" id="statEmployees">—</div>
+                        <div class="mu-stat-label">Employees</div>
+                    </div>
+                </div>
+                <div class="mu-stat-card mu-stat-card--amber">
+                    <div class="mu-stat-icon"><i class="fa-solid fa-store"></i></div>
+                    <div class="mu-stat-info">
+                        <div class="mu-stat-value" id="statSellers">—</div>
+                        <div class="mu-stat-label">Sellers</div>
+                    </div>
+                </div>
+                <div class="mu-stat-card mu-stat-card--red">
+                    <div class="mu-stat-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                    <div class="mu-stat-info">
+                        <div class="mu-stat-value" id="statAdmins">—</div>
+                        <div class="mu-stat-label">Admins</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Search & Role Editor ── -->
+            <div class="mu-card" id="searchCard">
+                <div class="mu-card-header">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Search User</span>
+                </div>
+                <form id="searchForm" class="mu-search-row">
+                    <input type="email" id="searchEmail" class="mu-input" placeholder="Enter user email…" required autocomplete="off">
+                    <button type="submit" class="mu-btn-primary" id="searchBtn">
+                        <i class="fa-solid fa-search"></i> Search
+                    </button>
+                </form>
+
+                <!-- Result panel (hidden until search) -->
+                <div id="resultPanel" class="mu-result-panel" style="display:none;">
+                    <div class="mu-user-hero">
+                        <div class="mu-avatar" id="resAvatar">U</div>
+                        <div class="mu-user-info">
+                            <div class="mu-user-name" id="resName">—</div>
+                            <div class="mu-user-email" id="resEmail">—</div>
+                        </div>
+                    </div>
+
+                    <div class="mu-section-label">Select Roles</div>
+                    <div class="mu-roles-grid" id="rolesGrid">
+                        <label class="mu-role-chip">
+                            <input type="checkbox" name="role" value="admin" id="r-admin">
+                            <span><i class="fa-solid fa-shield-halved"></i> Admin</span>
+                        </label>
+                        <label class="mu-role-chip">
+                            <input type="checkbox" name="role" value="seller" id="r-seller">
+                            <span><i class="fa-solid fa-store"></i> Seller</span>
+                        </label>
+                        <label class="mu-role-chip">
+                            <input type="checkbox" name="role" value="employee" id="r-emp">
+                            <span><i class="fa-solid fa-id-badge"></i> Employee</span>
+                        </label>
+                        <label class="mu-role-chip">
+                            <input type="checkbox" name="role" value="manage_items" id="r-items">
+                            <span><i class="fa-solid fa-boxes-stacked"></i> Items</span>
+                        </label>
+                    </div>
+
+                    <!-- Employee permissions (shown when employee checked) -->
+                    <div id="empPermsSection" class="mu-emp-perms" style="display:none;">
+                        <div class="mu-section-label mu-section-label--info">
+                            <i class="fa-solid fa-unlock-keyhole"></i> Employee Permissions
+                        </div>
+                        <div class="mu-roles-grid">
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_marketing" id="r-mkt">
+                                <span><i class="fa-solid fa-bullhorn"></i> Marketing</span>
+                            </label>
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_support" id="r-sup">
+                                <span><i class="fa-solid fa-headset"></i> Support</span>
+                            </label>
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_requests" id="r-req">
+                                <span><i class="fa-solid fa-box-open"></i> Requests</span>
+                            </label>
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_banners" id="r-ban">
+                                <span><i class="fa-solid fa-images"></i> Banners</span>
+                            </label>
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_xerox" id="r-xrx">
+                                <span><i class="fa-solid fa-print"></i> Xerox</span>
+                            </label>
+                            <label class="mu-role-chip mu-role-chip--info">
+                                <input type="checkbox" name="role" value="manage_cache" id="r-cch">
+                                <span><i class="fa-solid fa-database"></i> Cache</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mu-confirm-row">
+                        <button class="mu-btn-success" id="updateBtn">
+                            <i class="fa-solid fa-check"></i> Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Filter Bar ── -->
+            <div class="mu-filter-bar" id="filterBar">
+                <button class="mu-filter-btn active" data-filter="all">All</button>
+                <button class="mu-filter-btn" data-filter="user">User</button>
+                <button class="mu-filter-btn" data-filter="seller">Seller</button>
+                <button class="mu-filter-btn" data-filter="employee">Employee</button>
+                <button class="mu-filter-btn" data-filter="admin">Admin</button>
+            </div>
+
+            <!-- ── User List ── -->
+            <div id="userList" class="mu-user-list">
+                <div class="mu-skeleton" aria-hidden="true">
+                    <div class="mu-skeleton-row"></div>
+                    <div class="mu-skeleton-row"></div>
+                    <div class="mu-skeleton-row"></div>
+                </div>
+            </div>
+
+            <p id="userCount" class="mu-count-text">Loading…</p>
+        </div><!-- /page-wrap -->
+    </main>
+
+    <!-- ════ BOTTOM NAV ════ -->
+    <nav class="bottom-nav">
+        <a href="index.html" class="bottom-nav-item">
+            <i class="fa-solid fa-house"></i><span>Home</span>
+        </a>
+        <a href="orders.html" class="bottom-nav-item">
+            <i class="fa-solid fa-clipboard-list"></i><span>Orders</span>
+        </a>
+        <a href="manage-users.html" class="bottom-nav-item active">
+            <i class="fa-solid fa-users-gear"></i><span>Users</span>
+        </a>
+        <a href="profile.html" class="bottom-nav-item">
+            <i class="fa-solid fa-user-gear"></i><span>Profile</span>
+        </a>
+    </nav>
+
+    <!-- ════ USER DETAIL MODAL ════ -->
+    <div class="mu-modal-overlay" id="detailOverlay" onclick="closeDetailModal(event)">
+        <div class="mu-modal" id="detailModal">
+            <div class="mu-modal-header">
+                <div class="mu-modal-avatar" id="mdAvatar">U</div>
+                <div>
+                    <div class="mu-modal-name" id="mdName">—</div>
+                    <div class="mu-modal-uid" id="mdUid">—</div>
+                </div>
+                <button class="mu-modal-close" onclick="closeDetailModal()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="mu-modal-roles" id="mdRoles"></div>
+            <div class="mu-modal-body">
+                <div class="mu-detail-row">
+                    <i class="fa-solid fa-envelope"></i>
+                    <div>
+                        <div class="mu-detail-label">Email</div>
+                        <div class="mu-detail-value" id="mdEmail">—</div>
+                    </div>
+                    <button class="mu-copy-btn" onclick="copyText(document.getElementById('mdEmail').textContent)" title="Copy">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+                <div class="mu-detail-row">
+                    <i class="fa-solid fa-phone"></i>
+                    <div>
+                        <div class="mu-detail-label">Mobile</div>
+                        <div class="mu-detail-value" id="mdPhone">—</div>
+                    </div>
+                </div>
+                <div class="mu-detail-row">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <div>
+                        <div class="mu-detail-label">Joined</div>
+                        <div class="mu-detail-value" id="mdJoined">—</div>
+                    </div>
+                </div>
+                <div class="mu-detail-row">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <div>
+                        <div class="mu-detail-label">Addresses</div>
+                        <div class="mu-detail-value" id="mdAddrCount">0</div>
+                    </div>
+                </div>
+                <!-- Addresses list -->
+                <div id="mdAddresses" class="mu-addr-list"></div>
+            </div>
+            <button class="mu-btn-primary mu-modal-action-btn" onclick="closeDetailModal()">Close</button>
+        </div>
+    </div>
+
+    <!-- ════ TOAST ════ -->
+    <div class="mu-toast" id="muToast"></div>
+
+    <!-- ════ SCRIPTS ════ -->
+    <script src="app.js"></script>
+    <script type="module" src="auth-header.js"></script>
+    <script type="module" src="manage-users.js"></script>
+</body>
+</html>

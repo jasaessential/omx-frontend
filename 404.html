@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 — Page Not Found</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            background: #f2f4f8; min-height:100vh;
+            display:flex; align-items:center; justify-content:center; padding:20px;
+        }
+        .card {
+            background:#fff; border-radius:28px;
+            box-shadow:0 20px 60px rgba(45,140,240,.12);
+            padding:48px 36px; max-width:420px; width:100%; text-align:center;
+        }
+        .code {
+            font-size:5rem; font-weight:900; letter-spacing:-4px; line-height:1;
+            background:linear-gradient(135deg,#2D8CF0,#5BA8F5);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+            background-clip:text; margin-bottom:8px;
+        }
+        .pill {
+            display:inline-flex; align-items:center; gap:6px;
+            background:#fff3f3; color:#ef4444; border:1px solid #fecaca;
+            border-radius:20px; padding:5px 14px;
+            font-size:.75rem; font-weight:700; margin-bottom:20px;
+        }
+        .dot { width:7px; height:7px; border-radius:50%; background:#ef4444; }
+        h1 { font-size:1.5rem; font-weight:800; color:#0d1117; margin-bottom:10px; letter-spacing:-.5px; }
+        p  { font-size:.92rem; color:#6b7280; line-height:1.65; margin-bottom:28px; }
+        .url-box {
+            background:#f8f9fa; border:1px solid #eee; border-radius:10px;
+            padding:10px 14px; font-size:.78rem; color:#999;
+            font-family:monospace; margin-bottom:28px;
+            word-break:break-all; text-align:left;
+        }
+        .btn {
+            display:flex; align-items:center; justify-content:center; gap:8px;
+            width:100%; padding:14px; border-radius:14px; border:none;
+            font-size:.95rem; font-weight:700; cursor:pointer;
+            text-decoration:none; margin-bottom:10px;
+            transition:transform .15s,box-shadow .15s; font-family:inherit;
+        }
+        .btn-primary { background:#2D8CF0; color:#fff; }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(45,140,240,.3); }
+        .btn-secondary { background:#eef6ff; color:#2D8CF0; }
+        .btn-secondary:hover { background:#deeeff; }
+        hr { border:none; border-top:1px solid #f0f0f0; margin:20px 0; }
+        .label { font-size:.72rem; font-weight:700; color:#bbb; text-transform:uppercase; letter-spacing:.8px; margin-bottom:10px; }
+        .links { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+        .link {
+            background:#f8f9fa; border:1px solid #eee; border-radius:10px;
+            padding:7px 14px; font-size:.8rem; font-weight:600;
+            color:#444; text-decoration:none; transition:all .15s;
+        }
+        .link:hover { background:#eef6ff; border-color:#2D8CF0; color:#2D8CF0; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="code">404</div>
+    <div class="pill"><span class="dot"></span> Page Not Found</div>
+    <h1>Oops! Wrong Turn</h1>
+    <p>The page you're looking for doesn't exist or may have been moved.</p>
+    <div class="url-box" id="badUrl"></div>
+    <a href="index.html" class="btn btn-primary"><i class="fa-solid fa-house"></i> Go to Home</a>
+    <button class="btn btn-secondary" onclick="history.back()"><i class="fa-solid fa-arrow-left"></i> Go Back</button>
+    <hr>
+    <div class="label">Quick Links</div>
+    <div class="links">
+        <a href="index.html"       class="link"><i class="fa-solid fa-house"></i> Home</a>
+        <a href="categories.html"  class="link"><i class="fa-solid fa-border-all"></i> Shop</a>
+        <a href="xerox-order.html" class="link"><i class="fa-solid fa-print"></i> Xerox</a>
+        <a href="orders.html"      class="link"><i class="fa-solid fa-box"></i> Orders</a>
+        <a href="profile.html"     class="link"><i class="fa-solid fa-user"></i> Profile</a>
+    </div>
+</div>
+<script>
+    const el = document.getElementById('badUrl');
+    if (el) el.textContent = window.location.pathname;
+</script>
+</body>
+</html>

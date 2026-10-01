@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════
+# JASA V2 — Wrangler config for the Cloudflare Worker
+# (workers.js — the edge cache / API gateway worker)
+#
+# Deploy:
+#   npx wrangler deploy          (from the JASA-V2 root)
+# ═══════════════════════════════════════════════
+
+name                  = "jasa-backend-worker"
+main                  = "workers.js"
+compatibility_date    = "2024-09-23"
+
+# ── KV Namespace binding (cache) ───────────────────────────────
+# Create with: npx wrangler kv:namespace create "CACHE"
+# Then replace <KV_NAMESPACE_ID> with the printed id.
+[[kv_namespaces]]
+binding = "CACHE"
+id      = "<KV_NAMESPACE_ID>"
+
+# ── R2 Bucket binding (product images) ────────────────────────
+# Create bucket: npx wrangler r2 bucket create jasa-product-images
+# Then this binding is available as env.PRODUCT_IMAGES in workers.js
+[[r2_buckets]]
+binding    = "PRODUCT_IMAGES"
+bucket_name = "jasa-product-images"
+
+# ── Non-secret env vars ────────────────────────────────────────
+[vars]
+R2_PUBLIC_URL = "https://pub-35a590f6b24c49aba1b36086b8a5cc65.r2.dev"
+PAYMENT_SERVER_URL = "https://server-bc02.onrender.com"   # Render payment server (cron target)
+
+# ── Secrets (set via CLI — never commit these) ─────────────────
+# Run once before deploying:
+#
+#   npx wrangler secret put ADMIN_SECRET_KEY
+#   npx wrangler secret put FIREBASE_PROJECT_ID
+#   npx wrangler secret put FIREBASE_API_KEY
+#   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+#   npx wrangler secret put R2_PUBLIC_URL          (or keep as [vars] above)
+
+# ── Cron: wallet settle + abandoned-checkout sweep on the payment server ──
+# Uses PAYMENT_SERVER_URL ([vars] above) and the secret SERVER_SECRET
+#   npx wrangler secret put SERVER_SECRET     (same value as SERVER_SECRET on Render)
+[triggers]
+crons = ["*/15 * * * *"]

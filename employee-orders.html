@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Orders — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="seller-orders.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+<!-- ════ SIDEBAR OVERLAY ════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ════ SIDEBAR ════ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+<!-- ════ HEADER ════ -->
+<header class="header" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="hamburger" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+            <span class="so-page-title">
+                <i class="fa-solid fa-motorcycle"></i>
+                <span>Delivery Dashboard</span>
+            </span>
+        </div>
+        <div class="header-right">
+            <!-- intentionally empty — clean header for delivery role -->
+        </div>
+    </div>
+</header>
+
+<!-- ════ FILTER BAR ════ -->
+<div class="so-filter-bar" id="eoFilterBar">
+    <div class="so-filter-inner">
+        <button class="so-filter-tab active" data-filter="active" onclick="setFilter('active',this)">
+            Active <span class="so-count-pill" id="cntActive">0</span>
+        </button>
+        <button class="so-filter-tab"        data-filter="past"   onclick="setFilter('past',this)">
+            Past <span class="so-count-pill" id="cntPast">0</span>
+        </button>
+    </div>
+</div>
+
+<!-- ════ MAIN ════ -->
+<main class="main-content">
+    <div class="page-wrap so-wrap">
+
+        <!-- Skeleton -->
+        <div id="eoSkeleton">
+            <div class="so-skeleton"></div>
+            <div class="so-skeleton"></div>
+            <div class="so-skeleton"></div>
+        </div>
+
+        <!-- Access error (not assigned to any shop) -->
+        <div class="so-empty" id="eoNoShop" style="display:none;">
+            <i class="fa-solid fa-store-slash so-empty-icon" style="color:#f59e0b;"></i>
+            <h3>No Shops Assigned</h3>
+            <p>You are not currently assigned to any shops for delivery. Contact your administrator.</p>
+        </div>
+
+        <!-- Empty orders -->
+        <div class="so-empty" id="eoEmpty" style="display:none;">
+            <i class="fa-solid fa-box-open so-empty-icon"></i>
+            <h3>No deliveries found</h3>
+            <p>Confirmed orders requiring delivery will appear here.</p>
+        </div>
+
+        <!-- Orders list -->
+        <div id="eoList"></div>
+
+    </div>
+</main>
+
+<!-- ════ BOTTOM NAV ════ -->
+<nav class="so-bottom-nav">
+    <a href="index.html"           class="so-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="employee-orders.html" class="so-nav-item active"><i class="fa-solid fa-motorcycle"></i><span>Delivery</span></a>
+    <a href="profile.html"         class="so-nav-item"><i class="fa-solid fa-user-gear"></i><span>Profile</span></a>
+</nav>
+
+<!-- ════ TOAST ════ -->
+<div class="so-toast" id="soToast"></div>
+
+<!-- ════ SCRIPTS ════ -->
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="employee-orders.js?v=20261001a"></script>
+</body>
+</html>

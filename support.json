@@ -1,0 +1,39 @@
+{
+  "title": "JASA Essentials Customer Support",
+  "subtitle": "We are here to help you with your orders, Xerox services, and inquiries.",
+  "emails": [
+    {
+      "id": "email-1",
+      "address": "jasaessentials3@gmail.com",
+      "label": "Official Support Email",
+      "description": "Send us your queries, bulk order requests, or feedback anytime.",
+      "badge": "Primary"
+    }
+  ],
+  "phoneNumbers": [
+    {
+      "id": "phone-1",
+      "number": "7639276705",
+      "displayNumber": "+91 76392 76705",
+      "label": "Customer Helpline",
+      "timing": "Mon - Sat: 9:00 AM - 8:00 PM",
+      "badge": "Call Us"
+    }
+  ],
+  "whatsappNumbers": [
+    {
+      "id": "wa-1",
+      "number": "7639276705",
+      "countryCode": "91",
+      "displayNumber": "+91 76392 76705",
+      "label": "Instant WhatsApp Support",
+      "timing": "24/7 Available",
+      "badge": "WhatsApp"
+    }
+  ],
+  "prefilledMessages": {
+    "whatsapp": "Hello JASA Essentials Support, I need help regarding your services / my order.",
+    "emailSubject": "Support Inquiry - JASA Essentials",
+    "emailBody": "Hello JASA Essentials Support Team,\n\nI need assistance with my order/query.\n\nPlease get back to me as soon as possible.\n\nThank you!"
+  }
+}

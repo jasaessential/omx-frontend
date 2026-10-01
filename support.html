@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support — JASA Essential</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="support.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+    <!-- ════ SIDEBAR OVERLAY ════ -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="sbIdentity"></div>
+        <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+    <!-- ════ HEADER ════ -->
+    <header class="header" id="mainHeader">
+        <div class="header-inner">
+            <div class="header-left">
+                <button class="hamburger" onclick="openSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <a href="cart.html" class="header-cart-btn" id="headerCartBtn">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span class="header-cart-badge" id="headerCartBadge" style="display:none;"></span>
+                </a>
+                <a href="login.html" class="header-login-btn" id="headerLoginBtn">
+                    <i class="fa-regular fa-user"></i>
+                    <span>Login</span>
+                </a>
+                <a href="profile.html" class="header-avatar-wrap" id="headerAvatarWrap" style="display:none;" title="My Account">
+                    <i class="fa-solid fa-user header-avatar-icon" id="headerAvatarIcon"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ════ MAIN CONTENT ════ -->
+    <main class="main-content">
+    <div class="page-wrap sp-wrap">
+
+        <!-- ── PAGE HERO BANNER ── -->
+        <div class="sp-page-header">
+            <div class="sp-page-header-orb sp-orb1"></div>
+            <div class="sp-page-header-orb sp-orb2"></div>
+            <div class="sp-header-content">
+                <div class="sp-header-icon">
+                    <i class="fa-solid fa-headset"></i>
+                </div>
+                <div>
+                    <h1 class="sp-page-title">Customer Support</h1>
+                    <p class="sp-page-sub">We are here to help you with your orders, Xerox services, and inquiries.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── DYNAMIC CONTACT CARDS CONTAINER ── -->
+        <div id="spCardsContainer">
+            <!-- Cards injected dynamically from support.json -->
+        </div>
+
+        <!-- ── SUBMIT QUERY FORM ── -->
+        <div class="sp-form-card">
+            <div class="sp-form-title"><i class="fa-solid fa-pen-to-square"></i> Submit a Query</div>
+
+            <div class="sp-form-grid2">
+                <div class="sp-field">
+                    <label class="sp-label" for="sqName">Your Name <span class="sp-req">*</span></label>
+                    <input type="text" id="sqName" class="sp-input" placeholder="Full name" maxlength="80">
+                </div>
+                <div class="sp-field">
+                    <label class="sp-label" for="sqEmail">Email <span class="sp-req">*</span></label>
+                    <input type="email" id="sqEmail" class="sp-input" placeholder="you@example.com">
+                </div>
+                <div class="sp-field">
+                    <label class="sp-label" for="sqPhone">Phone</label>
+                    <input type="tel" id="sqPhone" class="sp-input" placeholder="+91 98765 43210" maxlength="15">
+                </div>
+                <div class="sp-field">
+                    <label class="sp-label" for="sqType">Query Type <span class="sp-req">*</span></label>
+                    <select id="sqType" class="sp-select">
+                        <option value="">— Select Type —</option>
+                        <option value="general">General Inquiry</option>
+                        <option value="order">Order Related</option>
+                        <option value="product">Product Information</option>
+                        <option value="delivery">Delivery Issue</option>
+                        <option value="payment">Payment Issue</option>
+                        <option value="technical">Technical Support</option>
+                        <option value="feedback">Feedback / Suggestion</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="sp-field" style="margin-top:2px;">
+                <label class="sp-label" for="sqSubject">Subject <span class="sp-req">*</span></label>
+                <input type="text" id="sqSubject" class="sp-input" placeholder="Brief subject of your query" maxlength="120">
+            </div>
+
+            <div class="sp-field">
+                <label class="sp-label" for="sqMessage">Message <span class="sp-req">*</span></label>
+                <textarea id="sqMessage" class="sp-textarea"
+                    placeholder="Describe your query in detail…"></textarea>
+            </div>
+
+            <button class="sp-submit-btn" id="sqSubmitBtn" onclick="submitQuery()">
+                <i class="fa-solid fa-paper-plane"></i> Submit Query
+            </button>
+        </div>
+
+        <!-- ── QUERY HISTORY ── -->
+        <div class="sp-form-card">
+            <div class="sp-form-title"><i class="fa-solid fa-clock-rotate-left"></i> Your Queries</div>
+            <div id="sqHistoryList">
+                <div class="sp-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div>
+            </div>
+        </div>
+
+    </div>
+    </main>
+
+    <!-- ════ BOTTOM NAV BAR ════ -->
+    <nav class="bottom-nav" id="bottomNav">
+        <a href="index.html" class="bottom-nav-item">
+            <i class="fa-solid fa-house"></i>
+            <span>Home</span>
+        </a>
+        <a href="xerox-order.html" class="bottom-nav-item">
+            <i class="fa-solid fa-print"></i>
+            <span>Xerox</span>
+        </a>
+        <a href="categories.html" class="bottom-nav-item">
+            <i class="fa-solid fa-border-all"></i>
+            <span>Categories</span>
+        </a>
+        <a href="orders.html" class="bottom-nav-item">
+            <i class="fa-solid fa-file-lines"></i>
+            <span>Orders</span>
+        </a>
+        <a href="profile.html" class="bottom-nav-item">
+            <i class="fa-regular fa-user"></i>
+            <span>Account</span>
+        </a>
+    </nav>
+
+    <!-- ════ CLEAN CONFIRMATION REDIRECT MODAL ════ -->
+    <div class="sp-modal-overlay" id="spModalOverlay">
+        <div class="sp-modal">
+            <div class="sp-modal-head">
+                <div class="sp-modal-icon" id="spModalIcon">
+                    <i class="fa-solid fa-circle-info"></i>
+                </div>
+                <div>
+                    <h3 class="sp-modal-title" id="spModalTitle">Contact Support</h3>
+                    <p class="sp-modal-sub" id="spModalSub">Confirm your redirect action</p>
+                </div>
+            </div>
+            <div class="sp-modal-body" id="spModalBody">
+                <!-- Injected dynamically -->
+            </div>
+            <div class="sp-modal-actions">
+                <button class="sp-modal-btn-cancel" id="spModalCancelBtn">Cancel</button>
+                <button class="sp-modal-btn-confirm" id="spModalConfirmBtn">Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════ TOAST NOTIFICATION ════ -->
+    <div class="sp-toast" id="spToast"></div>
+
+    <script src="app.js"></script>
+    <script type="module" src="auth-header.js"></script>
+    <script src="support.js"></script>
+</body>
+</html>

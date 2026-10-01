@@ -1,0 +1,36 @@
+# Cloudflare Pages — _headers
+# Block direct access to sensitive files
+
+/.env
+  X-Robots-Tag: noindex
+  ! Access-Control-Allow-Origin
+  Cache-Control: no-store
+  Content-Type: text/plain
+  X-Content-Type-Options: nosniff
+
+/.env.example
+  X-Robots-Tag: noindex
+  Cache-Control: no-store
+
+/env-config.js
+  X-Robots-Tag: noindex
+  Cache-Control: no-store, no-cache, private
+
+/env-config-sw.js
+  X-Robots-Tag: noindex
+  Cache-Control: no-store, no-cache, private
+
+/sync-env.js
+  X-Robots-Tag: noindex
+  Cache-Control: no-store, no-cache, private
+
+/workers.js
+  X-Robots-Tag: noindex
+  Cache-Control: no-store, no-cache, private
+
+# Security headers for all pages
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

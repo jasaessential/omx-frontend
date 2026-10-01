@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manage Shops — JASA V2</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="manage-shops.css" />
+    <meta name="theme-color" content="#2D8CF0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OrderXerox" />
+    <link rel="manifest" href="manifest.json" />
+    <link
+      rel="apple-touch-icon"
+      href="assets/icons/android/launchericon-192x192.png"
+    />
+  </head>
+  <body>
+    <!-- ════ SIDEBAR OVERLAY ════ -->
+    <div
+      class="sidebar-overlay"
+      id="sidebarOverlay"
+      onclick="closeSidebar()"
+    ></div>
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <i class="fa-solid fa-print" style="color: var(--primary)"></i>
+          <a href="index.html" class="header-brand">
+            <span class="brand-print">Order</span>
+            <span class="brand-badge"
+              ><span class="brand-badge-inner"
+                ><span class="brand-badge-front">my</span
+                ><span class="brand-badge-back"
+                  ><img src="favicon.ico" alt="" /></span></span
+            ></span>
+            <span class="brand-xerox">xerox</span>
+          </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div id="sbIdentity"></div>
+      <nav class="sidebar-nav" id="sbNav"></nav>
+    </aside>
+
+    <!-- ════ HEADER ════ -->
+    <header class="header" id="mainHeader">
+      <div class="header-inner">
+        <div class="header-left">
+          <button class="hamburger" onclick="openSidebar()">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <span class="ms-page-title"
+            ><i class="fa-solid fa-store"></i> Manage Shops</span
+          >
+        </div>
+        <div class="header-right">
+          <a href="index.html" class="header-icon-btn" title="Home">
+            <i class="fa-solid fa-house"></i>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- ════ MAIN ════ -->
+    <main class="main-content">
+      <div class="page-wrap ms-wrap">
+        <!-- Fixed Header with 4 Buttons -->
+        <div class="ms-fixed-header">
+          <button class="ms-header-btn" onclick="openStateModal()">
+            <i class="fa-solid fa-map"></i>
+            <span>States</span>
+          </button>
+          <button class="ms-header-btn" onclick="openDistrictModal()">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span>District</span>
+          </button>
+          <button class="ms-header-btn" onclick="openCityModal()">
+            <i class="fa-solid fa-city"></i>
+            <span>Cities</span>
+          </button>
+          <button
+            class="ms-header-btn ms-header-btn-primary"
+            onclick="openShopModal()"
+          >
+            <i class="fa-solid fa-store"></i>
+            <span>Add Shops</span>
+          </button>
+        </div>
+
+        <!-- Shops Grid -->
+        <div class="ms-grid" id="shopsGrid">
+          <div class="ms-skeleton"></div>
+          <div class="ms-skeleton"></div>
+          <div class="ms-skeleton"></div>
+        </div>
+
+        <!-- ── "Others" Fallback Shops Settings Card ── -->
+        <div class="ms-fallback-card" id="otherShopsCard">
+          <div class="ms-fallback-card-head">
+            <div class="ms-fallback-card-icon">
+              <i class="fa-solid fa-shuffle"></i>
+            </div>
+            <div>
+              <div class="ms-fallback-card-title">Default "Others" Shop</div>
+              <div class="ms-fallback-card-sub">
+                Shown when a user selects "Others" in the location filter. Set
+                one fallback shop per category.
+              </div>
+            </div>
+          </div>
+
+          <div class="ms-fallback-fields" id="otherShopsFields">
+            <div class="ms-fallback-row">
+              <label class="ms-fallback-label"
+                ><i class="fa-solid fa-print" style="color: #2d8cf0"></i>
+                Xerox</label
+              >
+              <select class="ms-input ms-fallback-select" id="fallbackXerox">
+                <option value="">— None —</option>
+              </select>
+            </div>
+            <div class="ms-fallback-row">
+              <label class="ms-fallback-label"
+                ><i class="fa-solid fa-pen-ruler" style="color: #8b5cf6"></i>
+                Stationary</label
+              >
+              <select
+                class="ms-input ms-fallback-select"
+                id="fallbackStationary"
+              >
+                <option value="">— None —</option>
+              </select>
+            </div>
+            <div class="ms-fallback-row">
+              <label class="ms-fallback-label"
+                ><i class="fa-solid fa-book" style="color: #16a34a"></i>
+                Books</label
+              >
+              <select class="ms-input ms-fallback-select" id="fallbackBooks">
+                <option value="">— None —</option>
+              </select>
+            </div>
+            <div class="ms-fallback-row">
+              <label class="ms-fallback-label"
+                ><i class="fa-solid fa-toolbox" style="color: #f59e0b"></i>
+                Kits</label
+              >
+              <select class="ms-input ms-fallback-select" id="fallbackKits">
+                <option value="">— None —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="ms-fallback-foot">
+            <span class="ms-fallback-status" id="otherShopsStatus"></span>
+            <button
+              class="ms-btn-primary"
+              id="saveOtherShopsBtn"
+              onclick="saveOtherShops()"
+            >
+              <i class="fa-solid fa-floppy-disk"></i> Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ════ BOTTOM NAV ════ -->
+    <nav class="bottom-nav">
+      <a href="index.html" class="bottom-nav-item">
+        <i class="fa-solid fa-house"></i><span>Home</span>
+      </a>
+      <a href="admin-orders.html" class="bottom-nav-item">
+        <i class="fa-solid fa-clipboard-list"></i><span>Orders</span>
+      </a>
+      <a href="manage-shops.html" class="bottom-nav-item active">
+        <i class="fa-solid fa-store"></i><span>Shops</span>
+      </a>
+      <a href="profile.html" class="bottom-nav-item">
+        <i class="fa-solid fa-user-gear"></i><span>Profile</span>
+      </a>
+    </nav>
+
+    <!-- ════════════════════════════════════════
+         SHOP FORM MODAL
+    ════════════════════════════════════════ -->
+    <div
+      class="ms-modal-overlay"
+      id="shopModalOverlay"
+      onclick="handleModalClick(event)"
+    >
+      <div class="ms-modal" id="shopModal">
+        <div class="ms-modal-header">
+          <div>
+            <div class="ms-modal-title" id="formTitle">Create Shop</div>
+            <div class="ms-modal-subtitle" id="formSubtitle">
+              Add a new shop to the system.
+            </div>
+          </div>
+          <button class="ms-modal-close" onclick="closeShopModal()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="ms-modal-body">
+          <form id="shopForm">
+            <!-- Basic Details -->
+            <div class="ms-group">
+              <div
+                style="
+                  font-weight: 700;
+                  margin-bottom: 16px;
+                  font-size: 1.05rem;
+                "
+              >
+                Basic Details
+              </div>
+
+              <label class="ms-label"
+                >Shop Name <span class="req">*</span></label
+              >
+              <input
+                type="text"
+                id="shopName"
+                class="ms-input"
+                placeholder="e.g., Jasa Books & Stationary"
+                style="margin-bottom: 16px"
+                required
+              />
+
+              <label class="ms-label"
+                >Shop Type <span class="req">*</span></label
+              >
+              <div style="display: flex; gap: 16px; margin-bottom: 16px">
+                <label class="ms-check-label">
+                  <input
+                    type="radio"
+                    name="shopType"
+                    id="shopTypeShop"
+                    value="shop"
+                    checked
+                  />
+                  <i
+                    class="fa-solid fa-store"
+                    style="color: var(--primary)"
+                  ></i>
+                  Shop
+                </label>
+                <label class="ms-check-label">
+                  <input
+                    type="radio"
+                    name="shopType"
+                    id="shopTypeCollege"
+                    value="college"
+                  />
+                  <i
+                    class="fa-solid fa-building-columns"
+                    style="color: #16a34a"
+                  ></i>
+                  College
+                </label>
+              </div>
+
+              <label class="ms-label">Address <span class="req">*</span></label>
+              <input
+                type="text"
+                id="shopAddress"
+                class="ms-input"
+                placeholder="123 Main St, Anytown"
+                style="margin-bottom: 16px"
+                required
+              />
+
+              <label class="ms-label">Location Map Link</label>
+              <input
+                type="url"
+                id="shopLocationLink"
+                class="ms-input"
+                placeholder="Paste Google Maps link..."
+                style="margin-bottom: 16px"
+              />
+
+              <div class="ms-row-head" style="margin-bottom: 4px">
+                <label class="ms-label" style="margin: 0"
+                  >States <span class="req">*</span></label
+                >
+              </div>
+              <div style="margin-bottom: 16px">
+                <select
+                  id="shopStates"
+                  multiple
+                  name="shop-states"
+                  required
+                ></select>
+              </div>
+
+              <div class="ms-row-head" style="margin-bottom: 4px">
+                <label class="ms-label" style="margin: 0">Districts</label>
+              </div>
+              <div style="margin-bottom: 16px">
+                <select
+                  id="shopDistricts"
+                  multiple
+                  name="shop-districts"
+                ></select>
+              </div>
+
+              <div class="ms-row-head" style="margin-bottom: 4px">
+                <label class="ms-label" style="margin: 0"
+                  >Cities <span class="req">*</span></label
+                >
+              </div>
+              <div style="margin-bottom: 0">
+                <select
+                  id="shopCities"
+                  multiple
+                  name="shop-cities"
+                  required
+                ></select>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="ms-group">
+              <div
+                style="
+                  font-weight: 700;
+                  margin-bottom: 16px;
+                  font-size: 1.05rem;
+                "
+              >
+                Contact Information
+              </div>
+
+              <div class="ms-row-head">
+                <label class="ms-label" style="margin: 0"
+                  >Mobile Numbers <span class="req">*</span></label
+                >
+                <button type="button" class="ms-btn-sm" id="addMobileBtn">
+                  <i class="fa-solid fa-plus"></i> Add
+                </button>
+              </div>
+              <div id="mobilesContainer" style="margin-bottom: 16px">
+                <div class="ms-entry mobile-entry">
+                  <input
+                    type="tel"
+                    class="ms-input mobile-input"
+                    placeholder="10-digit number"
+                    pattern="[0-9]{10}"
+                    maxlength="10"
+                    required
+                  />
+                  <button type="button" class="ms-btn-rm remove-mobile-btn">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="ms-row-head">
+                <label class="ms-label" style="margin: 0; color: #16a34a"
+                  ><i class="fa-brands fa-whatsapp"></i> WhatsApp</label
+                >
+                <button type="button" class="ms-btn-sm" id="addWaBtn">
+                  <i class="fa-solid fa-plus"></i> Add
+                </button>
+              </div>
+              <div id="waContainer">
+                <div class="ms-entry wa-entry">
+                  <input
+                    type="tel"
+                    class="ms-input wa-input"
+                    placeholder="10-digit WhatsApp number"
+                    pattern="[0-9]{10}"
+                    maxlength="10"
+                  />
+                  <button type="button" class="ms-btn-rm remove-wa-btn">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Staffing -->
+            <div class="ms-group">
+              <div
+                style="
+                  font-weight: 700;
+                  margin-bottom: 16px;
+                  font-size: 1.05rem;
+                "
+              >
+                Staffing
+              </div>
+
+              <label class="ms-label"
+                >Shop Owners <span class="req">*</span></label
+              >
+              <div style="margin-bottom: 16px">
+                <select
+                  id="shopOwners"
+                  multiple
+                  name="shop-owners"
+                  required
+                ></select>
+              </div>
+
+              <label class="ms-label">Shop Employees</label>
+              <select
+                id="shopEmployees"
+                multiple
+                name="shop-employees"
+              ></select>
+            </div>
+
+            <!-- Services & Pricing -->
+            <div class="ms-group">
+              <div
+                style="
+                  font-weight: 700;
+                  margin-bottom: 16px;
+                  font-size: 1.05rem;
+                "
+              >
+                Services &amp; Pricing
+              </div>
+
+              <label class="ms-label">Shop Services</label>
+              <div class="ms-check-grid" style="margin-bottom: 20px">
+                <label class="ms-check-label"
+                  ><input
+                    type="checkbox"
+                    class="service-checkbox"
+                    value="Stationary"
+                  />
+                  Stationary</label
+                >
+                <label class="ms-check-label"
+                  ><input
+                    type="checkbox"
+                    class="service-checkbox"
+                    value="Books"
+                  />
+                  Books</label
+                >
+                <label class="ms-check-label"
+                  ><input
+                    type="checkbox"
+                    class="service-checkbox"
+                    value="Electronics"
+                  />
+                  Electronics</label
+                >
+                <label class="ms-check-label"
+                  ><input
+                    type="checkbox"
+                    class="service-checkbox"
+                    value="Posters"
+                  />
+                  Posters</label
+                >
+                <label class="ms-check-label"
+                  ><input
+                    type="checkbox"
+                    class="service-checkbox"
+                    value="Xerox"
+                  />
+                  Xerox</label
+                >
+              </div>
+
+              <label class="ms-label">Delivery Pricing Tiers</label>
+
+              <!-- Xerox Pricing -->
+              <div class="ms-rules-box">
+                <div class="ms-row-head">
+                  <div style="font-size: 0.85rem; font-weight: 700">
+                    Xerox Delivery Rules
+                  </div>
+                  <button
+                    type="button"
+                    class="ms-btn-sm"
+                    onclick="addPricingRule('xeroxRulesContainer')"
+                  >
+                    <i class="fa-solid fa-plus"></i> Rule
+                  </button>
+                </div>
+                <div id="xeroxRulesContainer"></div>
+              </div>
+
+              <!-- Standard Pricing -->
+              <div class="ms-rules-box" style="margin-bottom: 0">
+                <div class="ms-row-head">
+                  <div>
+                    <div style="font-size: 0.85rem; font-weight: 700">
+                      Standard Services Delivery
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--txt3)">
+                      Stationary, Books, Electronics, Posters
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    class="ms-btn-sm"
+                    onclick="addPricingRule('stdRulesContainer')"
+                  >
+                    <i class="fa-solid fa-plus"></i> Rule
+                  </button>
+                </div>
+                <div id="stdRulesContainer"></div>
+              </div>
+            </div>
+
+            <!-- Additional Information -->
+            <div class="ms-group">
+              <div
+                style="
+                  font-weight: 700;
+                  margin-bottom: 16px;
+                  font-size: 1.05rem;
+                "
+              >
+                Additional Information
+              </div>
+
+              <label class="ms-label" style="margin-bottom: 10px"
+                >Home Delivery</label
+              >
+              <label class="ms-check-label" style="margin-bottom: 12px">
+                <input
+                  type="checkbox"
+                  id="shopHomeDelivery"
+                  onchange="toggleDeliveryTime(this)"
+                />
+                <i
+                  class="fa-solid fa-truck-fast"
+                  style="color: var(--primary)"
+                ></i>
+                Home Delivery Available
+              </label>
+              <div
+                id="deliveryTimeWrap"
+                style="display: none; margin-bottom: 16px"
+              >
+                <label class="ms-label"
+                  >Delivery Within <span class="req">*</span></label
+                >
+                <select id="shopDeliveryTime" class="ms-input">
+                  <option value="Within 12 hours">Within 12 hours</option>
+                  <option value="Within 24 hours">Within 24 hours</option>
+                  <option value="Within 2 days">Within 2 days</option>
+                  <option value="Within 3 days">Within 3 days</option>
+                  <option value="Within 5 days">Within 5 days</option>
+                  <option value="Within 7 days">Within 7 days</option>
+                </select>
+              </div>
+
+              <div class="ms-row-head">
+                <label class="ms-label" style="margin: 0"
+                  >Available Areas</label
+                >
+                <button type="button" class="ms-btn-sm" id="addAreaBtn">
+                  <i class="fa-solid fa-plus"></i> Add
+                </button>
+              </div>
+              <div id="areasContainer" style="margin-bottom: 16px">
+                <div class="ms-entry area-entry">
+                  <input
+                    type="text"
+                    class="ms-input area-input"
+                    placeholder="e.g., North District"
+                  />
+                  <button type="button" class="ms-btn-rm remove-area-btn">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+
+              <label class="ms-label">Notes (Optional)</label>
+              <textarea
+                id="shopNotes"
+                class="ms-input"
+                rows="3"
+                placeholder="e.g., Delivery between 10 AM and 6 PM"
+              ></textarea>
+            </div>
+          </form>
+        </div>
+
+        <div class="ms-modal-foot">
+          <button
+            type="submit"
+            form="shopForm"
+            id="submitBtn"
+            class="ms-submit-btn"
+          >
+            Create Shop
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         STATE MODAL
+    ════════════════════════════════════════ -->
+    <div
+      class="ms-modal-overlay"
+      id="stateModalOverlay"
+      onclick="handleStateModalClick(event)"
+    >
+      <div class="ms-modal" id="stateModal">
+        <div class="ms-modal-header">
+          <div>
+            <div class="ms-modal-title">Manage States</div>
+            <div class="ms-modal-subtitle">
+              Add or remove states for the shops.
+            </div>
+          </div>
+          <button class="ms-modal-close" onclick="closeStateModal()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="ms-modal-body">
+          <form id="stateForm" onsubmit="handleStateSubmit(event)">
+            <div class="ms-group">
+              <label class="ms-label"
+                >Add New State <span class="req">*</span></label
+              >
+              <div style="display: flex; gap: 8px">
+                <input
+                  type="text"
+                  id="newStateName"
+                  class="ms-input"
+                  placeholder="e.g., Tamil Nadu"
+                  required
+                />
+                <button type="submit" class="ms-btn-primary">Add</button>
+              </div>
+            </div>
+          </form>
+          <div class="ms-group">
+            <div
+              style="font-weight: 700; margin-bottom: 12px; font-size: 0.9rem"
+            >
+              Existing States
+            </div>
+            <div
+              id="statesList"
+              style="display: flex; flex-direction: column; gap: 8px"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         DISTRICT MODAL
+    ════════════════════════════════════════ -->
+    <div
+      class="ms-modal-overlay"
+      id="districtModalOverlay"
+      onclick="handleDistrictModalClick(event)"
+    >
+      <div class="ms-modal" id="districtModal">
+        <div class="ms-modal-header">
+          <div>
+            <div class="ms-modal-title">Manage Districts</div>
+            <div class="ms-modal-subtitle">
+              Add or remove districts under specific states.
+            </div>
+          </div>
+          <button class="ms-modal-close" onclick="closeDistrictModal()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="ms-modal-body">
+          <form id="districtForm" onsubmit="handleDistrictSubmit(event)">
+            <div class="ms-group">
+              <label class="ms-label"
+                >Select State <span class="req">*</span></label
+              >
+              <select
+                id="districtStateSelect"
+                class="ms-input"
+                style="margin-bottom: 12px"
+                required
+                onchange="renderDistrictsList()"
+              >
+                <option value="">Choose a state...</option>
+              </select>
+
+              <label class="ms-label"
+                >Add New District <span class="req">*</span></label
+              >
+              <div style="display: flex; gap: 8px">
+                <input
+                  type="text"
+                  id="newDistrictName"
+                  class="ms-input"
+                  placeholder="e.g., Chennai District"
+                  required
+                />
+                <button type="submit" class="ms-btn-primary">Add</button>
+              </div>
+            </div>
+          </form>
+          <div class="ms-group">
+            <div
+              style="font-weight: 700; margin-bottom: 12px; font-size: 0.9rem"
+            >
+              Existing Districts
+            </div>
+            <div
+              id="districtsList"
+              style="display: flex; flex-direction: column; gap: 8px"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         CITY MODAL
+    ════════════════════════════════════════ -->
+    <div
+      class="ms-modal-overlay"
+      id="cityModalOverlay"
+      onclick="handleCityModalClick(event)"
+    >
+      <div class="ms-modal" id="cityModal">
+        <div class="ms-modal-header">
+          <div>
+            <div class="ms-modal-title">Manage Cities</div>
+            <div class="ms-modal-subtitle">
+              Add or remove cities under specific districts.
+            </div>
+          </div>
+          <button class="ms-modal-close" onclick="closeCityModal()">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="ms-modal-body">
+          <form id="cityForm" onsubmit="handleCitySubmit(event)">
+            <div class="ms-group">
+              <label class="ms-label"
+                >Select State <span class="req">*</span></label
+              >
+              <select
+                id="cityStateSelect"
+                class="ms-input"
+                style="margin-bottom: 12px"
+                required
+                onchange="updateCityDistrictDropdown()"
+              >
+                <option value="">Choose a state...</option>
+              </select>
+
+              <label class="ms-label"
+                >Select District <span class="req">*</span></label
+              >
+              <select
+                id="cityDistrictSelect"
+                class="ms-input"
+                style="margin-bottom: 12px"
+                required
+                onchange="renderCitiesList()"
+              >
+                <option value="">Choose a district...</option>
+              </select>
+
+              <label class="ms-label"
+                >Add New City <span class="req">*</span></label
+              >
+              <div style="display: flex; gap: 8px">
+                <input
+                  type="text"
+                  id="newCityName"
+                  class="ms-input"
+                  placeholder="e.g., Adyar"
+                  required
+                />
+                <button type="submit" class="ms-btn-primary">Add</button>
+              </div>
+            </div>
+          </form>
+          <div class="ms-group">
+            <div
+              style="font-weight: 700; margin-bottom: 12px; font-size: 0.9rem"
+            >
+              Existing Cities
+            </div>
+            <div
+              id="citiesList"
+              style="display: flex; flex-direction: column; gap: 8px"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ TOAST ════ -->
+    <div class="mu-toast" id="muToast"></div>
+
+    <!-- ════ SCRIPTS ════ -->
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script src="app.js"></script>
+    <script type="module" src="auth-header.js"></script>
+    <script type="module" src="manage-shops.js"></script>
+  </body>
+</html>

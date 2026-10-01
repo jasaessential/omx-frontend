@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 — Server Error</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            background:#f2f4f8; min-height:100vh;
+            display:flex; align-items:center; justify-content:center; padding:20px;
+        }
+        .card {
+            background:#fff; border-radius:28px;
+            box-shadow:0 20px 60px rgba(0,0,0,.1);
+            padding:48px 36px; max-width:420px; width:100%; text-align:center;
+        }
+        .code {
+            font-size:5rem; font-weight:900; letter-spacing:-4px; line-height:1;
+            background:linear-gradient(135deg,#ef4444,#f97316);
+            -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+            background-clip:text; margin-bottom:8px;
+        }
+        .icon-wrap {
+            width:80px; height:80px;
+            background:linear-gradient(135deg,#fee2e2,#ffedd5);
+            border-radius:22px; display:flex; align-items:center; justify-content:center;
+            margin:0 auto 20px; font-size:2.2rem; color:#ef4444;
+        }
+        .pill {
+            display:inline-flex; align-items:center; gap:6px;
+            background:#fff3f3; color:#ef4444; border:1px solid #fecaca;
+            border-radius:20px; padding:5px 14px;
+            font-size:.75rem; font-weight:700; margin-bottom:20px;
+        }
+        .dot { width:7px; height:7px; border-radius:50%; background:#ef4444; animation:blink 1.4s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+        h1 { font-size:1.5rem; font-weight:800; color:#0d1117; margin-bottom:10px; }
+        p  { font-size:.92rem; color:#6b7280; line-height:1.65; margin-bottom:28px; }
+        .btn {
+            display:flex; align-items:center; justify-content:center; gap:8px;
+            width:100%; padding:14px; border-radius:14px; border:none;
+            font-size:.95rem; font-weight:700; cursor:pointer;
+            text-decoration:none; margin-bottom:10px;
+            transition:transform .15s,box-shadow .15s; font-family:inherit;
+        }
+        .btn-primary { background:#2D8CF0; color:#fff; }
+        .btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(45,140,240,.3); }
+        .btn-secondary { background:#eef6ff; color:#2D8CF0; }
+        .btn-secondary:hover { background:#deeeff; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="icon-wrap"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div class="code">500</div>
+    <div class="pill"><span class="dot"></span> Server Error</div>
+    <h1>Something Went Wrong</h1>
+    <p>We hit an unexpected error on our end. Our team has been notified. Please try again in a moment.</p>
+    <button class="btn btn-primary" onclick="window.location.reload()">
+        <i class="fa-solid fa-rotate-right"></i> Try Again
+    </button>
+    <a href="index.html" class="btn btn-secondary">
+        <i class="fa-solid fa-house"></i> Go to Home
+    </a>
+</div>
+</body>
+</html>

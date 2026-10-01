@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-cache.css">
+</head>
+<body>
+
+<!-- ════ SIDEBAR OVERLAY ════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ════ SIDEBAR ════ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+<!-- ════ HEADER ════ -->
+<header class="header" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="hamburger" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+            <span class="ac-page-title"><i class="fa-solid fa-bullhorn"></i> Marketing</span>
+        </div>
+        <div class="header-right">
+            <button class="ac-refresh-btn" id="refreshBtn" onclick="loadPage()" title="Refresh">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+            <a href="index.html" class="header-icon-btn" title="Home"><i class="fa-solid fa-house"></i></a>
+        </div>
+    </div>
+</header>
+
+<!-- ════ MAIN ════ -->
+<main class="main-content">
+<div class="page-wrap ac-wrap">
+
+    <!-- Info banner -->
+    <div class="ac-info-banner">
+        <div class="ac-info-icon"><i class="fa-solid fa-bell"></i></div>
+        <div class="ac-info-text">
+            <strong>Push Notifications.</strong> Send FCM push to all users who have notifications enabled. Delivered even when the app is closed.
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="ac-stats-grid" style="grid-template-columns:repeat(4,1fr);">
+        <div class="ac-stat ac-stat--blue">
+            <i class="fa-solid fa-paper-plane"></i>
+            <div class="ac-stat-val" id="statCampaigns">—</div>
+            <div class="ac-stat-lbl">Campaigns</div>
+        </div>
+        <div class="ac-stat ac-stat--green">
+            <i class="fa-solid fa-bell"></i>
+            <div class="ac-stat-val" id="statEligible">—</div>
+            <div class="ac-stat-lbl">Push Enabled</div>
+        </div>
+        <div class="ac-stat ac-stat--amber">
+            <i class="fa-solid fa-clock"></i>
+            <div class="ac-stat-val" id="statRecent">—</div>
+            <div class="ac-stat-lbl">Last 7 Days</div>
+        </div>
+        <div class="ac-stat ac-stat--purple">
+            <i class="fa-solid fa-image"></i>
+            <div class="ac-stat-val" id="statImages">—</div>
+            <div class="ac-stat-lbl">Images Used</div>
+        </div>
+    </div>
+
+    <!-- Compose -->
+    <div class="ac-section-label"><i class="fa-solid fa-pen-to-square"></i> Compose Campaign</div>
+
+    <div class="ac-table-card" style="padding:16px;">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+
+            <div>
+                <div style="font-size:.65rem;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Deep Link Target</div>
+                <select id="notifLink" style="width:100%;height:38px;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:0 10px;font-family:inherit;font-size:.82rem;background:var(--bg-white);color:var(--txt1);">
+                    <option value="index.html">Home Page</option>
+                    <option value="xerox-order.html">Xerox Services</option>
+                    <option value="categories.html?cat=stationary">Stationary</option>
+                    <option value="categories.html?cat=electronic">Kits Store</option>
+                    <option value="categories.html?cat=books">Books</option>
+                    <option value="orders.html">My Orders</option>
+                </select>
+            </div>
+
+            <div>
+                <div style="font-size:.65rem;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Notification Title <span style="color:var(--txt3);font-weight:500;" id="titleCounter">0/50</span></div>
+                <input type="text" id="notifTitle" maxlength="50" placeholder="e.g. Weekend Flash Sale! ⚡"
+                    oninput="updatePreview()"
+                    style="width:100%;height:38px;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:0 10px;font-family:inherit;font-size:.82rem;background:var(--bg-white);color:var(--txt1);">
+            </div>
+
+            <div>
+                <div style="font-size:.65rem;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Message Body <span style="color:var(--txt3);font-weight:500;" id="bodyCounter">0/150</span></div>
+                <textarea id="notifBody" maxlength="150" rows="3" placeholder="Clear and compelling message…"
+                    oninput="updatePreview()"
+                    style="width:100%;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:8px 10px;font-family:inherit;font-size:.82rem;background:var(--bg-white);color:var(--txt1);resize:vertical;"></textarea>
+            </div>
+
+            <div>
+                <div style="font-size:.65rem;font-weight:800;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Image URL (optional)</div>
+                <input type="url" id="notifImage" placeholder="https://…" oninput="updatePreview()"
+                    style="width:100%;height:38px;border:1.5px solid var(--border2);border-radius:var(--r-xs);padding:0 10px;font-family:inherit;font-size:.82rem;background:var(--bg-white);color:var(--txt1);">
+            </div>
+
+            <!-- Live preview -->
+            <div id="previewBox" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-xs);padding:12px;display:flex;align-items:flex-start;gap:10px;">
+                <img src="assets/logo.png" alt="icon"
+                     onerror="this.style.display='none'"
+                     style="width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:contain;">
+                <div style="flex:1;min-width:0;">
+                    <div id="prevTitle" style="font-size:.82rem;font-weight:800;color:var(--txt1);">Your Title Here</div>
+                    <div id="prevBody"  style="font-size:.74rem;color:var(--txt3);margin-top:2px;">Notification preview…</div>
+                    <img id="prevImg" src="" alt="" style="display:none;width:100%;border-radius:6px;margin-top:6px;max-height:80px;object-fit:cover;">
+                </div>
+            </div>
+
+            <div id="statusMsg" style="display:none;padding:10px 14px;border-radius:var(--r-xs);font-size:.8rem;font-weight:700;"></div>
+
+            <button class="ac-btn ac-btn--refresh" id="sendBtn" onclick="sendNotification()" style="height:44px;font-size:.84rem;">
+                <i class="fa-solid fa-paper-plane"></i> Launch Campaign
+            </button>
+        </div>
+    </div>
+
+    <!-- History -->
+    <div class="ac-section-label"><i class="fa-solid fa-clock-rotate-left"></i> Campaign History</div>
+    <div class="ac-table-card">
+        <div class="ac-table-wrap">
+            <table class="ac-table">
+                <thead>
+                    <tr><th>Title</th><th>Recipients</th><th>Date</th><th></th></tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="4" class="ac-table-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div><!-- /ac-wrap -->
+</main>
+
+<!-- ════ BOTTOM NAV ════ -->
+<nav class="ac-bottom-nav">
+    <a href="index.html"           class="ac-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="admin-orders.html"    class="ac-nav-item"><i class="fa-solid fa-clipboard-list"></i><span>Orders</span></a>
+    <a href="admin-marketing.html" class="ac-nav-item active"><i class="fa-solid fa-bullhorn"></i><span>Marketing</span></a>
+    <a href="profile.html"         class="ac-nav-item"><i class="fa-solid fa-user-gear"></i><span>Profile</span></a>
+</nav>
+
+<!-- ════ TOAST ════ -->
+<div class="ac-toast" id="acToast"></div>
+
+<!-- ════ SCRIPTS ════ -->
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="admin-marketing.js?v=20261001a"></script>
+</body>
+</html>

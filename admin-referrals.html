@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referrals — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-banners.css">
+    <link rel="stylesheet" href="admin-growth.css?v=20260925a">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav>
+</aside>
+
+<header class="header" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="hamburger" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+            <span class="ab-page-title"><i class="fa-solid fa-user-plus"></i> Referrals</span>
+        </div>
+        <div class="header-right">
+            <a href="admin-wallet.html" class="header-icon-btn" title="Wallet settings"><i class="fa-solid fa-wallet"></i></a>
+            <a href="index.html" class="header-icon-btn" title="Back to Home"><i class="fa-solid fa-house"></i></a>
+        </div>
+    </div>
+</header>
+
+<main class="main-content">
+    <div class="page-wrap ab-wrap">
+
+        <div class="ab-hero">
+            <div class="ab-hero-icon"><i class="fa-solid fa-user-plus"></i></div>
+            <div class="ab-hero-text">
+                <div class="ab-hero-title">Refer a Friend</div>
+                <div class="ab-hero-sub">Every user has a unique code. Rewards are paid into wallets.</div>
+            </div>
+        </div>
+
+        <div class="ag-stack">
+
+            <div class="ag-master" id="rMaster">
+                <div class="ag-master-text">
+                    <div class="ag-master-title">Referral program is <span id="rMasterState">off</span></div>
+                    <div class="ag-master-sub">When off, codes can't be applied and no rewards are paid. Existing codes stay valid.</div>
+                </div>
+                <label class="ag-switch"><input type="checkbox" id="rEnabled" onchange="onMasterChange()"><span></span></label>
+            </div>
+
+            <div class="ag-stats">
+                <div class="ag-stat"><span>Total referrals</span><b id="sTotal">0</b></div>
+                <div class="ag-stat"><span>Rewarded</span><b id="sRewarded">0</b></div>
+                <div class="ag-stat"><span>Pending</span><b id="sPending">0</b></div>
+                <div class="ag-stat"><span>Paid out (all)</span><b id="sPaid">₹0</b></div>
+            </div>
+
+            <form class="ag-stack" style="padding-bottom:0;" onsubmit="saveReferralConfig(event)">
+
+                <!-- When -->
+                <div class="ag-card">
+                    <div class="ag-card-head"><div class="ag-card-title"><i class="fa-solid fa-bolt"></i> When are rewards paid?</div></div>
+                    <div class="ag-seg" id="rTriggerSeg">
+                        <label><input type="radio" name="rTrigger" value="first_order" checked onchange="onTriggerChange()"><span>After friend's first delivered order</span></label>
+                    </div>
+                    <div class="ag-hint" id="rTriggerHint" style="margin-top:8px;"></div>
+                    <div class="ag-grid" style="margin-top:12px;" id="rMinOrderWrap">
+                        <div class="ag-field">
+                            <label class="ab-label">Min. value of friend's first order</label>
+                            <div class="ag-input-wrap pre"><span class="ag-unit">₹</span><input type="number" class="ab-input" id="rMinFirst" min="0" step="1" placeholder="0"></div>
+                            <div class="ag-hint">The delivered order must be worth at least this much (items, after coupon &amp; wallet). Stops "empty" sign-ups from earning rewards.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referrer -->
+                <div class="ag-card">
+                    <div class="ag-card-head"><div class="ag-card-title"><i class="fa-solid fa-user-check"></i> Reward for the person who refers</div></div>
+                    <div class="ag-seg">
+                        <label><input type="radio" name="rrType" value="fixed" checked onchange="onTypeChange()"><span>Fixed amount (₹)</span></label>
+                        <label><input type="radio" name="rrType" value="percent" onchange="onTypeChange()"><span>% of friend's first order</span></label>
+                    </div>
+                    <div class="ag-grid" style="margin-top:12px;">
+                        <div class="ag-field">
+                            <label class="ab-label" id="rrValueLabel">Amount</label>
+                            <div class="ag-input-wrap" id="rrValueWrap"><input type="number" class="ab-input" id="rrValue" min="0" step="0.01" placeholder="0"><span class="ag-unit" id="rrUnit">₹</span></div>
+                        </div>
+                        <div class="ag-field" id="rrMaxField">
+                            <label class="ab-label">Max reward per referral</label>
+                            <div class="ag-input-wrap pre"><span class="ag-unit">₹</span><input type="number" class="ab-input" id="rrMax" min="0" step="1" placeholder="0 = no cap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referee -->
+                <div class="ag-card">
+                    <div class="ag-card-head"><div class="ag-card-title"><i class="fa-solid fa-gift"></i> Welcome bonus for the friend who joins</div></div>
+                    <div class="ag-seg">
+                        <label><input type="radio" name="reType" value="fixed" checked onchange="onTypeChange()"><span>Fixed amount (₹)</span></label>
+                        <label><input type="radio" name="reType" value="percent" onchange="onTypeChange()"><span>% of their first order</span></label>
+                    </div>
+                    <div class="ag-grid" style="margin-top:12px;">
+                        <div class="ag-field">
+                            <label class="ab-label" id="reValueLabel">Amount</label>
+                            <div class="ag-input-wrap" id="reValueWrap"><input type="number" class="ab-input" id="reValue" min="0" step="0.01" placeholder="0"><span class="ag-unit" id="reUnit">₹</span></div>
+                        </div>
+                        <div class="ag-field" id="reMaxField">
+                            <label class="ab-label">Max bonus</label>
+                            <div class="ag-input-wrap pre"><span class="ag-unit">₹</span><input type="number" class="ab-input" id="reMax" min="0" step="1" placeholder="0 = no cap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Limits -->
+                <div class="ag-card">
+                    <div class="ag-card-head"><div class="ag-card-title"><i class="fa-solid fa-shield-halved"></i> Limits &amp; abuse protection</div></div>
+                    <div class="ag-grid">
+                        <div class="ag-field">
+                            <label class="ab-label">Max rewarded referrals per person</label>
+                            <input type="number" class="ab-input" id="rMaxPer" min="0" step="1" placeholder="0 = unlimited">
+                            <div class="ag-hint">One person can share their code with many friends — cap how many can pay out. 0 = unlimited.</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <label class="ab-checkbox-label"><input type="checkbox" id="rNewOnly" checked><span>New users only — a code can be added only before the account's first order</span></label>
+                    </div>
+                    <div class="ag-hint" style="margin-top:8px;">Always enforced: each account can use a referral code only <b>once</b>, can't use its own code, and two users can't refer each other.</div>
+                </div>
+
+                <div class="ag-savebar">
+                    <span class="ag-saved" id="rSaved"></span>
+                    <button type="submit" class="ab-btn-primary" id="rSaveBtn">Save settings</button>
+                </div>
+            </form>
+
+            <!-- Backfill -->
+            <div class="ag-card">
+                <div class="ag-card-head"><div class="ag-card-title"><i class="fa-solid fa-id-card"></i> Referral codes for existing users</div></div>
+                <div class="ag-note"><i class="fa-solid fa-circle-info"></i>
+                    <span>Users get their code automatically the next time they open the app. Use this to generate codes for <b>everyone</b> right now (safe to run repeatedly — users who already have a code are skipped).</span></div>
+                <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+                    <button class="ab-btn-primary" id="bfBtn" type="button" onclick="runBackfill()">Generate missing codes</button>
+                    <span class="ag-hint" id="bfStatus"></span>
+                </div>
+                <div class="ag-progress" id="bfBar" style="display:none;"><span id="bfFill"></span></div>
+            </div>
+
+            <!-- Referral list -->
+            <div class="ag-card">
+                <div class="ag-card-head">
+                    <div class="ag-card-title"><i class="fa-solid fa-list"></i> Referrals</div>
+                    <button class="ab-icon-btn" onclick="loadReferrals()" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+                <div class="ab-filter-pills" id="rFilters" style="margin-bottom:8px;">
+                    <button class="ab-pill active" onclick="setRefFilter('all', this)">All</button>
+                    <button class="ab-pill" onclick="setRefFilter('pending', this)">Pending</button>
+                    <button class="ab-pill" onclick="setRefFilter('rewarded', this)">Rewarded</button>
+                    <button class="ab-pill" onclick="setRefFilter('rejected', this)">Rejected</button>
+                </div>
+                <div id="rList"><div class="ab-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading…</div></div>
+            </div>
+
+        </div>
+    </div>
+</main>
+
+<div class="ab-toast" id="abToast"></div>
+
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="admin-referrals.js?v=20261001a"></script>
+</body>
+</html>

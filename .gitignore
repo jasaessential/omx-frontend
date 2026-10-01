@@ -1,0 +1,26 @@
+# Environment variables — NEVER commit real secrets
+.env
+server/.env
+
+# env-config.js / env-config-sw.js are tracked: the site needs them and they hold
+# only public config (Firebase web config, server/Worker URLs) — checked 2026-10-01.
+
+# Firebase service account — SERVER ONLY, never commit
+server/service-account.json
+service-account.json
+
+# Node modules
+server/node_modules/
+node_modules/
+
+# workers.js and sync-env.js are tracked source. Keeping them (and server/, .env*)
+# out of the Pages upload is a deploy step — .gitignore doesn't affect that.
+
+# Local tool caches / settings
+.wrangler/
+.claude/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

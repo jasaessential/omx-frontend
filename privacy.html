@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — JASA Essential</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+    <style>
+        .legal-hero {
+            background: linear-gradient(135deg, #14532d 0%, #16a34a 55%, #4ade80 100%);
+            padding: 28px 20px 24px;
+            color: #fff;
+            border-radius: 0 0 var(--r) var(--r);
+            margin-bottom: 20px;
+        }
+        .legal-hero-icon {
+            width: 52px; height: 52px;
+            background: rgba(255,255,255,.18);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 12px;
+        }
+        .legal-hero h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+        .legal-hero p {
+            font-size: .82rem;
+            opacity: .85;
+        }
+
+        .legal-card {
+            background: var(--bg-white);
+            border-radius: var(--r);
+            border: 1px solid var(--border);
+            box-shadow: var(--sh-sm);
+            padding: 20px;
+            margin-bottom: 14px;
+        }
+        .legal-card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #16a34a;
+            margin-bottom: 12px;
+        }
+        .legal-card-title i {
+            width: 32px; height: 32px;
+            background: #dcfce7;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .85rem;
+            flex-shrink: 0;
+        }
+        [data-theme="dark"] .legal-card-title i {
+            background: rgba(22,163,74,.15);
+        }
+        .legal-body {
+            font-size: .85rem;
+            line-height: 1.75;
+            color: var(--txt2);
+        }
+        .legal-body ul {
+            padding-left: 18px;
+            margin-top: 8px;
+        }
+        .legal-body ul li {
+            margin-bottom: 6px;
+        }
+        .legal-body strong {
+            color: var(--txt1);
+        }
+        .legal-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #dcfce7;
+            color: #16a34a;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: .75rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        [data-theme="dark"] .legal-badge {
+            background: rgba(22,163,74,.15);
+            color: #4ade80;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .82rem;
+            margin-top: 10px;
+        }
+        .data-table th {
+            background: var(--bg);
+            color: var(--txt1);
+            font-weight: 700;
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table td {
+            padding: 8px 10px;
+            color: var(--txt2);
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        .legal-contact-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #dcfce7;
+            border-radius: var(--r-sm);
+            margin-top: 10px;
+        }
+        [data-theme="dark"] .legal-contact-row {
+            background: rgba(22,163,74,.1);
+        }
+        .legal-contact-row i {
+            color: #16a34a;
+            font-size: 1.1rem;
+        }
+        .legal-contact-row span {
+            font-size: .83rem;
+            color: var(--txt2);
+        }
+        .legal-contact-row a {
+            color: #16a34a;
+            font-weight: 600;
+        }
+        .rights-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .right-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 10px 12px;
+            font-size: .8rem;
+            color: var(--txt2);
+            font-weight: 500;
+        }
+        .right-chip i {
+            color: #16a34a;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR OVERLAY -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="sbIdentity"></div>
+        <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+    <!-- HEADER -->
+    <header class="header" id="mainHeader">
+        <div class="header-inner">
+            <div class="header-left">
+                <button class="hamburger" onclick="openSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <a href="index.html" class="header-brand">
+                    <span class="brand-print">Order</span>
+                    <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                    <span class="brand-xerox">xerox</span>
+                </a>
+            </div>
+            <div class="header-right">
+                <a href="cart.html" class="header-cart-btn" id="headerCartBtn">
+                    <i class="fa-solid fa-cart-shopping"></i>
+                    <span class="header-cart-badge" id="headerCartBadge" style="display:none;"></span>
+                </a>
+                <a href="login.html" class="header-login-btn" id="headerLoginBtn">
+                    <i class="fa-regular fa-user"></i><span>Login</span>
+                </a>
+                <a href="profile.html" class="header-avatar-wrap" id="headerAvatarWrap" style="display:none;" title="My Account">
+                    <i class="fa-solid fa-user header-avatar-icon" id="headerAvatarIcon"></i>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+    <div class="page-wrap">
+
+        <!-- Hero -->
+        <div class="legal-hero">
+            <div class="legal-hero-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <h1>Privacy Policy</h1>
+            <p>Last updated: August 3, 2026 &nbsp;·&nbsp; Effective immediately</p>
+        </div>
+
+        <div style="padding: 0 16px 20px;">
+
+            <div class="legal-badge">
+                <i class="fa-solid fa-lock"></i> Your privacy matters to us
+            </div>
+
+            <!-- Overview -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-circle-info"></i>
+                    Overview
+                </div>
+                <div class="legal-body">
+                    This Privacy Policy explains how <strong>JASA Essential</strong> ("Order My Xerox", "we", "us") collects, uses, and protects your personal information when you use our mobile app. We are committed to keeping your data safe and being transparent about how it is used.
+                </div>
+            </div>
+
+            <!-- Data We Collect -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-database"></i>
+                    1. Data We Collect
+                </div>
+                <div class="legal-body">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Data Type</th>
+                                <th>Examples</th>
+                                <th>Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Account Info</strong></td>
+                                <td>Name, email, phone number</td>
+                                <td>Account creation &amp; authentication</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Order Data</strong></td>
+                                <td>Items ordered, delivery address, payment status</td>
+                                <td>Fulfilling your orders</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Device Info</strong></td>
+                                <td>Device model, OS version, push token</td>
+                                <td>App performance &amp; notifications</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Usage Data</strong></td>
+                                <td>Pages visited, search queries, clicks</td>
+                                <td>Improving the app experience</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Files (Xerox)</strong></td>
+                                <td>Documents you upload for printing</td>
+                                <td>Processing your print order</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="margin-top:10px;">We do <strong>not</strong> collect your precise GPS location.</p>
+                </div>
+            </div>
+
+            <!-- How We Use Data -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-gear"></i>
+                    2. How We Use Your Data
+                </div>
+                <div class="legal-body">
+                    <ul>
+                        <li>Process and fulfil your orders</li>
+                        <li>Send order status updates and push notifications</li>
+                        <li>Provide customer support</li>
+                        <li>Improve app features and fix bugs</li>
+                        <li>Send promotional offers (only with your consent)</li>
+                        <li>Comply with legal obligations</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Firebase & Third Parties -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-cloud"></i>
+                    3. Third-Party Services
+                </div>
+                <div class="legal-body">
+                    We use the following trusted third-party services. Each has its own privacy policy:
+                    <ul>
+                        <li><strong>Google Firebase</strong> — Authentication, Firestore database, Cloud Storage, Push Notifications</li>
+                        <li><strong>Google Analytics for Firebase</strong> — Anonymous usage analytics</li>
+                        <li><strong>Google Fonts &amp; Font Awesome CDN</strong> — UI icons and fonts</li>
+                    </ul>
+                    We do not sell your data to any third party for advertising purposes.
+                </div>
+            </div>
+
+            <!-- Data Sharing -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-share-nodes"></i>
+                    4. Data Sharing
+                </div>
+                <div class="legal-body">
+                    We only share your data when:
+                    <ul>
+                        <li>It is necessary to fulfil your order (e.g., delivery staff see your delivery address)</li>
+                        <li>Required by law or a valid government request</li>
+                        <li>You have given explicit consent</li>
+                    </ul>
+                    We never sell your personal data.
+                </div>
+            </div>
+
+            <!-- Uploaded Files -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                    5. Uploaded Files (Xerox Orders)
+                </div>
+                <div class="legal-body">
+                    Documents you upload for xerox printing are stored securely on Firebase Cloud Storage. They are:
+                    <ul>
+                        <li>Accessed only by the fulfilment team to process your order</li>
+                        <li>Automatically deleted after <strong>30 days</strong> of order completion</li>
+                        <li>Never shared with third parties or used for any other purpose</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Data Retention -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    6. Data Retention
+                </div>
+                <div class="legal-body">
+                    We retain your account data for as long as your account is active or as needed to provide services. You may request deletion of your account and associated data at any time by contacting us.
+                </div>
+            </div>
+
+            <!-- Your Rights -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-user-check"></i>
+                    7. Your Rights
+                </div>
+                <div class="legal-body">
+                    You have the right to:
+                    <div class="rights-grid">
+                        <div class="right-chip"><i class="fa-solid fa-eye"></i> Access your data</div>
+                        <div class="right-chip"><i class="fa-solid fa-pen"></i> Correct inaccuracies</div>
+                        <div class="right-chip"><i class="fa-solid fa-trash"></i> Request deletion</div>
+                        <div class="right-chip"><i class="fa-solid fa-download"></i> Export your data</div>
+                        <div class="right-chip"><i class="fa-solid fa-bell-slash"></i> Opt out of marketing</div>
+                        <div class="right-chip"><i class="fa-solid fa-hand"></i> Restrict processing</div>
+                    </div>
+                    <p style="margin-top:12px;">To exercise any of these rights, contact us at the address below.</p>
+                </div>
+            </div>
+
+            <!-- Security -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-lock"></i>
+                    8. Security
+                </div>
+                <div class="legal-body">
+                    We use industry-standard security measures including:
+                    <ul>
+                        <li>Firebase Security Rules for all database and storage access</li>
+                        <li>HTTPS / TLS encryption for all data in transit</li>
+                        <li>Firebase Authentication for secure sign-in</li>
+                    </ul>
+                    No method of transmission over the internet is 100% secure. We strive to protect your data but cannot guarantee absolute security.
+                </div>
+            </div>
+
+            <!-- Children -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-child-reaching"></i>
+                    9. Children's Privacy
+                </div>
+                <div class="legal-body">
+                    Our service is not directed to children under the age of <strong>13</strong>. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal data, please contact us immediately.
+                </div>
+            </div>
+
+            <!-- Changes -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    10. Changes to This Policy
+                </div>
+                <div class="legal-body">
+                    We may update this Privacy Policy periodically. We will notify you of material changes via an in-app notification. Your continued use of the app after changes constitutes acceptance of the revised policy.
+                </div>
+            </div>
+
+            <!-- Contact -->
+            <div class="legal-card">
+                <div class="legal-card-title">
+                    <i class="fa-solid fa-envelope"></i>
+                    Contact &amp; Data Requests
+                </div>
+                <div class="legal-body">
+                    For privacy questions, data access, or deletion requests:
+                </div>
+                <div class="legal-contact-row">
+                    <i class="fa-solid fa-envelope"></i>
+                    <span>Email: <a href="mailto:support@jasaessential.com">support@jasaessential.com</a></span>
+                </div>
+                <div class="legal-contact-row" style="margin-top:8px;">
+                    <i class="fa-solid fa-headset"></i>
+                    <span>In-app: <a href="support.html">Support &amp; Help Centre</a></span>
+                </div>
+            </div>
+
+        </div><!-- /padding wrapper -->
+
+        <div style="height:calc(var(--bnh,64px) + 8px);"></div>
+    </div>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="bottom-nav" id="bottomNav">
+        <a href="index.html" class="bottom-nav-item">
+            <i class="fa-solid fa-house"></i><span>Home</span>
+        </a>
+        <a href="xerox-order.html" class="bottom-nav-item">
+            <i class="fa-solid fa-print"></i><span>Xerox</span>
+        </a>
+        <a href="categories.html" class="bottom-nav-item">
+            <i class="fa-solid fa-border-all"></i><span>Categories</span>
+        </a>
+        <a href="orders.html" class="bottom-nav-item">
+            <i class="fa-solid fa-file-lines"></i><span>Orders</span>
+        </a>
+        <a href="profile.html" class="bottom-nav-item">
+            <i class="fa-regular fa-user"></i><span>Account</span>
+        </a>
+    </nav>
+
+    <script src="app.js"></script>
+    <script type="module" src="auth-header.js"></script>
+</body>
+</html>

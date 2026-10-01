@@ -1,0 +1,65 @@
+.cp-list { display: flex; flex-direction: column; gap: 12px; padding-bottom: 90px; }
+
+.cp-card {
+    background: var(--card, #fff);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.cp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.cp-code {
+    font-family: ui-monospace, Consolas, monospace;
+    font-weight: 800;
+    font-size: .95rem;
+    letter-spacing: .06em;
+    padding: 4px 10px;
+    border: 1.5px dashed var(--primary);
+    color: var(--primary);
+    border-radius: 8px;
+    background: var(--primary-faint);
+}
+.cp-name { font-weight: 700; font-size: .85rem; margin-top: 6px; color: var(--txt1, #111); }
+.cp-desc { font-size: .72rem; color: var(--txt3); margin-top: 2px; }
+
+.cp-status { font-size: .65rem; font-weight: 800; padding: 3px 9px; border-radius: 99px; text-transform: uppercase; }
+.cp-status.live     { background: #dcfce7; color: #15803d; }
+.cp-status.inactive { background: #f1f5f9; color: #64748b; }
+.cp-status.expired  { background: #fee2e2; color: #b91c1c; }
+.cp-status.upcoming { background: #fef3c7; color: #b45309; }
+.cp-status.used-up  { background: #ffedd5; color: #c2410c; }
+
+.cp-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-chip {
+    font-size: .68rem; font-weight: 600; color: var(--txt2);
+    background: var(--bg, #f8fafc); border: 1px solid var(--border);
+    padding: 3px 8px; border-radius: 6px;
+}
+.cp-chip i { margin-right: 4px; color: var(--txt3); }
+
+.cp-bar { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.cp-bar > span { display: block; height: 100%; background: var(--primary); }
+
+.cp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.cp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .cp-row { grid-template-columns: 1fr; } }
+
+.cp-req { color: #ef4444; }
+.cp-opt { font-weight: 500; text-transform: none; color: var(--txt3); }
+.cp-hint { font-size: .68rem; color: var(--txt3); margin-top: 4px; }
+.cp-upper { text-transform: uppercase; }
+
+.cp-shops { display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;
+            border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.cp-shops label { display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 600; }
+
+.cp-usage-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--border); font-size: .74rem;
+}
+.cp-usage-row:last-child { border-bottom: none; }
+.cp-usage-row small { display: block; color: var(--txt3); font-size: .66rem; }
+.cp-usage-row .rel { color: #b91c1c; font-weight: 700; }

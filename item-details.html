@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Details — JASA Essential</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="item-details.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+    <!-- ════════ HEADER ════════ -->
+    <header class="id-header">
+        <button class="id-back-btn" onclick="history.length > 1 ? history.back() : window.location.href='categories.html'" title="Back">
+            <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <h1 class="id-header-title" id="headerTitle">Loading…</h1>
+        <a href="cart.html" class="id-cart-btn" title="Cart">
+            <i class="fa-solid fa-cart-shopping"></i>
+            <span class="id-cart-badge" id="cartBadge" style="display:none;">0</span>
+        </a>
+    </header>
+
+    <!-- ════════ SKELETON ════════ -->
+    <div class="id-skeleton" id="skeleton">
+        <div class="id-skel-img"></div>
+        <div class="id-skel-body">
+            <div class="id-skel-line w70"></div>
+            <div class="id-skel-line w50"></div>
+            <div class="id-skel-line w35"></div>
+        </div>
+    </div>
+
+    <!-- ════════ MAIN CONTENT ════════ -->
+    <main class="id-main" id="mainContent" style="display:none;">
+
+        <!-- ── IMAGE GALLERY ── -->
+        <div class="id-gallery" id="gallery">
+            <!-- images injected by JS -->
+        </div>
+        <!-- Thumbnail dots -->
+        <div class="id-gallery-dots" id="galleryDots"></div>
+
+        <!-- ── PRODUCT INFO ── -->
+        <div class="id-section id-info-section">
+            <h2 class="id-product-name" id="productName"></h2>
+            <p  class="id-product-sub"  id="productSub"></p>
+            <div class="id-price-row">
+                <span class="id-price"        id="productPrice"></span>
+                <span class="id-price-orig"   id="productPriceOrig"   style="display:none;"></span>
+                <span class="id-price-disc"   id="productPriceDisc"   style="display:none;"></span>
+            </div>
+        </div>
+
+        <!-- ── ACTION BUTTONS ── -->
+        <div class="id-section id-actions">
+            <button class="id-btn-cart"   id="btnAddCart">
+                <i class="fa-solid fa-cart-shopping"></i> Add to Cart
+            </button>
+            <button class="id-btn-buy"    id="btnBuyNow">
+                <i class="fa-solid fa-bag-shopping"></i> Buy Now
+            </button>
+        </div>
+
+        <!-- ── DESCRIPTION ── -->
+        <div class="id-section">
+            <div class="id-section-title">Description</div>
+            <div class="id-desc-wrap">
+                <p class="id-desc" id="productDesc"></p>
+                <button class="id-desc-toggle" id="descToggle" style="display:none;"
+                        onclick="toggleDesc()">
+                    View More <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ── PRODUCT DETAILS (tags) ── -->
+        <div class="id-section" id="detailsSection" style="display:none;">
+            <div class="id-section-title">Product Details</div>
+            <div class="id-tags" id="productTags"></div>
+        </div>
+
+        <!-- ── RELATED ITEMS ── -->
+        <div id="relatedContainer"></div>
+
+        <div style="height:24px;"></div>
+    </main>
+
+    <!-- ════════ BOTTOM NAV ════════ -->
+    <nav class="bottom-nav" id="bottomNav">
+        <a href="index.html"       class="bottom-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+        <a href="xerox-order.html" class="bottom-nav-item"><i class="fa-solid fa-print"></i><span>Xerox</span></a>
+        <a href="categories.html"  class="bottom-nav-item active"><i class="fa-solid fa-border-all"></i><span>Categories</span></a>
+        <a href="orders.html"      class="bottom-nav-item"><i class="fa-solid fa-file-lines"></i><span>Orders</span></a>
+        <a href="profile.html"     class="bottom-nav-item"><i class="fa-regular fa-user"></i><span>Account</span></a>
+    </nav>
+
+    <!-- ════════ TOAST ════════ -->
+    <div class="id-toast" id="idToast"></div>
+
+    <script src="app.js"></script>
+    <script type="module" src="item-details.js?v=20260924d"></script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're Offline — Order My Xerox</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2D8CF0">
+    <style>
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f2f4f8;
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 28px;
+            box-shadow: 0 20px 60px rgba(45,140,240,.13);
+            padding: 44px 32px 36px;
+            max-width: 400px; width: 100%;
+            text-align: center;
+        }
+
+        .icon-wrap {
+            width: 88px; height: 88px;
+            background: linear-gradient(135deg, #e8f2fe, #deeeff);
+            border-radius: 24px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 24px;
+        }
+        .icon-wrap svg { width: 44px; height: 44px; }
+
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: #fff3f3; color: #ef4444;
+            border: 1px solid #fecaca;
+            border-radius: 20px; padding: 5px 14px;
+            font-size: .75rem; font-weight: 700;
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #ef4444;
+            animation: blink 1.4s infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+        h1 {
+            font-size: 1.55rem; font-weight: 800; color: #0d1117;
+            margin-bottom: 10px; letter-spacing: -.4px;
+        }
+        p {
+            font-size: .92rem; color: #6b7280;
+            line-height: 1.65; margin-bottom: 28px;
+        }
+
+        .btn {
+            display: flex; align-items: center; justify-content: center; gap: 9px;
+            width: 100%; padding: 14px; border-radius: 14px; border: none;
+            font-size: .95rem; font-weight: 700; cursor: pointer;
+            text-decoration: none; margin-bottom: 10px;
+            transition: transform .15s, box-shadow .15s; font-family: inherit;
+        }
+        .btn:last-child { margin-bottom: 0; }
+        .btn-primary { background: #2D8CF0; color: #fff; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(45,140,240,.3); }
+        .btn-secondary { background: #eef6ff; color: #2D8CF0; }
+        .btn-secondary:hover { background: #deeeff; }
+
+        .cached-section {
+            margin-top: 24px; padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .cached-label {
+            font-size: .72rem; font-weight: 700; color: #bbb;
+            text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px;
+        }
+        .cached-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+        .cached-link {
+            display: inline-flex; align-items: center; gap: 5px;
+            background: #f8f9fa; border: 1px solid #eee;
+            border-radius: 10px; padding: 7px 13px;
+            font-size: .8rem; font-weight: 600; color: #444;
+            text-decoration: none; transition: all .15s;
+        }
+        .cached-link:hover { background: #eef6ff; border-color: #2D8CF0; color: #2D8CF0; }
+        .cached-link svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+        @media (max-width: 440px) {
+            .card { padding: 36px 20px 28px; border-radius: 20px; }
+            h1 { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+
+    <div class="icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2D8CF0" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+            <line x1="1"  y1="1"  x2="23" y2="23"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+    </div>
+
+    <div class="status-pill">
+        <span class="status-dot"></span>
+        No internet connection
+    </div>
+
+    <h1>You're Offline</h1>
+    <p>Check your Wi-Fi or mobile data and try again. Pages you've visited before are still available below.</p>
+
+    <button class="btn btn-primary" onclick="retryConnection(this)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Try Again
+    </button>
+
+    <a href="index.html" class="btn btn-secondary">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Go to Home
+    </a>
+
+    <div class="cached-section" id="cachedSection" style="display:none;">
+        <div class="cached-label">Available Offline</div>
+        <div class="cached-links" id="cachedLinks"></div>
+    </div>
+
+</div>
+
+<script>
+    window.addEventListener('online', () => window.location.reload());
+
+    function retryConnection(btn) {
+        const orig = btn.innerHTML;
+        btn.textContent = 'Checking…';
+        btn.style.opacity = '.7'; btn.disabled = true;
+        setTimeout(() => {
+            if (navigator.onLine) {
+                window.history.length > 1 ? window.history.back() : (window.location.href = 'index.html');
+            } else {
+                btn.innerHTML = orig; btn.style.opacity = '1'; btn.disabled = false;
+            }
+        }, 1200);
+    }
+
+    const PAGE_LABELS = {
+        'index.html':        { label: 'Home',       icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>' },
+        'cart.html':         { label: 'Cart',        icon: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>' },
+        'categories.html':   { label: 'Categories',  icon: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' },
+        'orders.html':       { label: 'My Orders',   icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>' },
+        'xerox-order.html':  { label: 'Xerox',       icon: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>' },
+        'profile.html':      { label: 'Profile',     icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>' },
+        'login.html':        { label: 'Login',       icon: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>' },
+    };
+
+    async function showCachedPages() {
+        if (!('caches' in window)) return;
+        try {
+            const keys  = await caches.keys();
+            const seen  = new Set();
+            const pages = [];
+            for (const name of keys) {
+                const cache    = await caches.open(name);
+                const requests = await cache.keys();
+                for (const req of requests) {
+                    const u = new URL(req.url);
+                    const fname = u.pathname.split('/').pop();
+                    if (u.hostname === location.hostname && fname.endsWith('.html')
+                        && !fname.includes('offline') && !fname.includes('404')
+                        && !seen.has(fname)) {
+                        seen.add(fname);
+                        pages.push(fname);
+                    }
+                }
+            }
+            if (!pages.length) return;
+            const linksEl = document.getElementById('cachedLinks');
+            linksEl.innerHTML = pages.slice(0, 8).map(f => {
+                const info = PAGE_LABELS[f];
+                const label = info?.label || f.replace('.html','');
+                const icon  = info?.icon  || '<circle cx="12" cy="12" r="10"/>';
+                return `<a href="${f}" class="cached-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+                    ${label}
+                </a>`;
+            }).join('');
+            document.getElementById('cachedSection').style.display = 'block';
+        } catch (_) {}
+    }
+    showCachedPages();
+</script>
+</body>
+</html>

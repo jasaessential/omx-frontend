@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Services — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin-cloud.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+<!-- ════ SIDEBAR OVERLAY ════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ════ SIDEBAR ════ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+<!-- ════ HEADER ════ -->
+<header class="header" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="hamburger" onclick="openSidebar()">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <span class="acl-page-title">
+                <i class="fa-solid fa-cloud"></i> Cloud Services
+            </span>
+        </div>
+        <div class="header-right">
+            <a href="index.html" class="header-icon-btn" title="Home">
+                <i class="fa-solid fa-house"></i>
+            </a>
+        </div>
+    </div>
+</header>
+
+<!-- ════ TAB BAR ════ -->
+<div class="acl-tab-bar" id="aclTabBar">
+    <div class="acl-tab-inner">
+        <button class="acl-tab active" data-tab="firebase" onclick="window.__setTab && window.__setTab('firebase', this)">
+            <i class="fa-solid fa-fire"></i> Firebase
+        </button>
+        <button class="acl-tab" data-tab="cloudinary" onclick="window.__setTab && window.__setTab('cloudinary', this)">
+            <i class="fa-solid fa-image"></i> Cloudinary
+        </button>
+        <button class="acl-tab" data-tab="r2" onclick="window.__setTab && window.__setTab('r2', this)">
+            <i class="fa-brands fa-cloudflare"></i> R2 Images
+        </button>
+        <button class="acl-tab" data-tab="storage" onclick="window.__setTab && window.__setTab('storage', this)">
+            <i class="fa-solid fa-hard-drive"></i> Storage
+        </button>
+    </div>
+</div>
+
+<!-- ════ MAIN ════ -->
+<main class="main-content">
+    <div class="page-wrap acl-wrap">
+
+        <!-- ══════════ FIREBASE TAB ══════════ -->
+        <section id="tab-firebase" class="acl-section active">
+
+            <!-- Hero card -->
+            <div class="acl-hero acl-hero--firebase">
+                <div class="acl-hero-icon"><i class="fa-solid fa-fire"></i></div>
+                <div>
+                    <div class="acl-hero-title">Firebase Usage</div>
+                    <div class="acl-hero-sub">Daily operations &amp; collection health</div>
+                </div>
+            </div>
+
+            <!-- Operation estimates -->
+            <div class="acl-section-label">
+                <i class="fa-solid fa-gauge-high"></i> Daily Operations (Estimated)
+            </div>
+            <div class="acl-ops-grid">
+                <div class="acl-op-card acl-op--reads">
+                    <i class="fa-solid fa-eye"></i>
+                    <div class="acl-op-val" id="fbReads">—</div>
+                    <div class="acl-op-lbl">Reads</div>
+                </div>
+                <div class="acl-op-card acl-op--writes">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <div class="acl-op-val" id="fbWrites">—</div>
+                    <div class="acl-op-lbl">Writes</div>
+                </div>
+                <div class="acl-op-card acl-op--deletes">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <div class="acl-op-val" id="fbDeletes">—</div>
+                    <div class="acl-op-lbl">Deletes</div>
+                </div>
+            </div>
+
+            <!-- Collection health -->
+            <div class="acl-section-label">
+                <i class="fa-solid fa-database"></i> Collection Health
+            </div>
+            <div class="acl-health-grid" id="fbHealthGrid">
+                <!-- injected -->
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Users</div>
+                    <div class="acl-health-val" id="fbCountUsers">—</div>
+                </div>
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Orders</div>
+                    <div class="acl-health-val" id="fbCountOrders">—</div>
+                </div>
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Items</div>
+                    <div class="acl-health-val" id="fbCountItems">—</div>
+                </div>
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Shops</div>
+                    <div class="acl-health-val" id="fbCountShops">—</div>
+                </div>
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Categories</div>
+                    <div class="acl-health-val" id="fbCountCategories">—</div>
+                </div>
+                <div class="acl-health-card">
+                    <div class="acl-health-lbl">Banners</div>
+                    <div class="acl-health-val" id="fbCountBanners">—</div>
+                </div>
+            </div>
+
+            <div class="acl-note">
+                <i class="fa-solid fa-circle-info"></i>
+                Counts are server-accurate. Operations are estimates based on active session metrics.
+            </div>
+        </section>
+
+        <!-- ══════════ CLOUDINARY TAB ══════════ -->
+        <section id="tab-cloudinary" class="acl-section">
+
+            <!-- Hero card -->
+            <div class="acl-hero acl-hero--cloudinary">
+                <div class="acl-hero-icon"><i class="fa-solid fa-image"></i></div>
+                <div>
+                    <div class="acl-hero-title">Cloudinary Media</div>
+                    <div class="acl-hero-sub">Free tier · 25 GB storage · 25 GB bandwidth</div>
+                </div>
+            </div>
+
+            <!-- Stats row -->
+            <div class="acl-cl-stats">
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Storage Used</div>
+                    <div class="acl-cl-stat-val" id="clStorage">—</div>
+                </div>
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Total Images</div>
+                    <div class="acl-cl-stat-val" id="clTotal">—</div>
+                </div>
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">In Use</div>
+                    <div class="acl-cl-stat-val acl-cl-stat-val--green" id="clUsed">—</div>
+                </div>
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Unused</div>
+                    <div class="acl-cl-stat-val acl-cl-stat-val--red" id="clUnused">—</div>
+                </div>
+            </div>
+
+            <!-- Storage bar -->
+            <div class="acl-bar-wrap">
+                <div class="acl-bar-header">
+                    <span class="acl-bar-lbl">Storage Capacity</span>
+                    <span class="acl-bar-pct" id="clPct">0.00%</span>
+                </div>
+                <div class="acl-bar-track">
+                    <div class="acl-bar-fill acl-bar-fill--cl" id="clBar" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="acl-controls">
+                <div class="acl-filter-pills" id="clFilterPills">
+                    <button class="acl-pill active" onclick="setClFilter('all',this)">All</button>
+                    <button class="acl-pill" onclick="setClFilter('used',this)">Used</button>
+                    <button class="acl-pill" onclick="setClFilter('unused',this)">Unused</button>
+                </div>
+                <div class="acl-ctrl-right">
+                    <label class="acl-select-all-wrap">
+                        <input type="checkbox" id="clSelectAll"> <span>All</span>
+                    </label>
+                    <button class="acl-icon-btn" onclick="refreshCl()" title="Refresh">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button class="acl-del-sel-btn" id="clBulkDel" disabled onclick="deleteSelectedCl()">
+                        <i class="fa-solid fa-trash-can"></i> <span>Delete</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div class="acl-cl-grid" id="clGrid">
+                <div class="acl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading images…</div>
+            </div>
+        </section>
+
+        <!-- ══════════ R2 IMAGES TAB ══════════ -->
+        <section id="tab-r2" class="acl-section">
+
+            <!-- Hero card -->
+            <div class="acl-hero acl-hero--r2">
+                <div class="acl-hero-icon"><i class="fa-brands fa-cloudflare"></i></div>
+                <div>
+                    <div class="acl-hero-title">Cloudflare R2 — Product Images</div>
+                    <div class="acl-hero-sub">10 GB free storage · zero egress fees · global CDN</div>
+                </div>
+            </div>
+
+            <!-- Stats row — 3 equal columns -->
+            <div class="acl-cl-stats acl-r2-stats">
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Total Images</div>
+                    <div class="acl-cl-stat-val" id="r2Total">—</div>
+                </div>
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Storage Used</div>
+                    <div class="acl-cl-stat-val" id="r2Storage">—</div>
+                </div>
+                <div class="acl-cl-stat">
+                    <div class="acl-cl-stat-lbl">Showing</div>
+                    <div class="acl-cl-stat-val" id="r2FilterLabel">All</div>
+                </div>
+            </div>
+
+            <!-- Bucket info note -->
+            <div class="acl-note">
+                <i class="fa-solid fa-circle-info"></i>
+                Images are stored under <code style="font-size:.72rem;background:var(--bg);padding:1px 5px;border-radius:4px;">products/&lt;category&gt;/&lt;itemId&gt;/</code> — uploaded automatically when you add or edit a product.
+            </div>
+
+            <!-- Controls -->
+            <div class="acl-controls">
+                <div class="acl-filter-pills" id="r2FilterPills">
+                    <button class="acl-pill active" onclick="setR2Filter('all',this)">All</button>
+                    <button class="acl-pill" onclick="setR2Filter('stationary',this)">Stationary</button>
+                    <button class="acl-pill" onclick="setR2Filter('electronic',this)">Kit</button>
+                    <button class="acl-pill" onclick="setR2Filter('books',this)">Books</button>
+                    <button class="acl-pill" onclick="setR2Filter('posters',this)">Posters</button>
+                </div>
+                <div class="acl-ctrl-right">
+                    <label class="acl-select-all-wrap">
+                        <input type="checkbox" id="r2SelectAll"> <span>All</span>
+                    </label>
+                    <button class="acl-icon-btn" onclick="refreshR2()" title="Refresh">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button class="acl-del-sel-btn" id="r2BulkDel" disabled onclick="deleteSelectedR2()">
+                        <i class="fa-solid fa-trash-can"></i> <span>Delete</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div class="acl-cl-grid" id="r2Grid">
+                <div class="acl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading images…</div>
+            </div>
+        </section>
+
+        <!-- ══════════ STORAGE TAB ══════════ -->
+        <section id="tab-storage" class="acl-section">
+
+            <!-- Hero card -->
+            <div class="acl-hero acl-hero--storage">
+                <div class="acl-hero-icon"><i class="fa-solid fa-hard-drive"></i></div>
+                <div>
+                    <div class="acl-hero-title">Bucket Storage</div>
+                    <div class="acl-hero-sub">Supabase files management · 5 GB free</div>
+                </div>
+            </div>
+
+            <!-- Storage bar -->
+            <div class="acl-bar-wrap">
+                <div class="acl-bar-header">
+                    <span class="acl-bar-lbl">Capacity Used</span>
+                    <span class="acl-bar-pct" id="stUsageText">0.00 MB / 5.00 GB</span>
+                </div>
+                <div class="acl-bar-track">
+                    <div class="acl-bar-fill acl-bar-fill--st" id="stBar" style="width:0%"></div>
+                </div>
+                <div class="acl-bar-footer">
+                    <span id="stFileCount">0 files</span>
+                    <span id="stPct">0.00%</span>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="acl-controls">
+                <label class="acl-select-all-wrap">
+                    <input type="checkbox" id="stSelectAll"> <span>Select All</span>
+                </label>
+                <div class="acl-ctrl-right">
+                    <button class="acl-icon-btn" onclick="refreshSt()" title="Refresh">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                    <button class="acl-del-sel-btn" id="stBulkDel" disabled onclick="deleteSelectedSt()">
+                        <i class="fa-solid fa-trash-can"></i> <span>Delete</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- File list -->
+            <div class="acl-st-list" id="stList">
+                <div class="acl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading files…</div>
+            </div>
+        </section>
+
+    </div><!-- /acl-wrap -->
+</main>
+
+<!-- ════ BOTTOM NAV ════ -->
+<nav class="acl-bottom-nav">
+    <a href="index.html"       class="acl-nav-item"><i class="fa-solid fa-house"></i><span>Home</span></a>
+    <a href="admin-orders.html" class="acl-nav-item"><i class="fa-solid fa-clipboard-list"></i><span>Orders</span></a>
+    <a href="admin-cloud.html" class="acl-nav-item active"><i class="fa-solid fa-cloud"></i><span>Cloud</span></a>
+    <a href="profile.html"     class="acl-nav-item"><i class="fa-solid fa-user-gear"></i><span>Profile</span></a>
+</nav>
+
+<!-- ════ CONFIRM DIALOG ════ -->
+<div class="acl-dialog-overlay" id="aclDialogOverlay">
+    <div class="acl-dialog">
+        <div class="acl-dialog-icon" id="aclDialogIcon">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="acl-dialog-title" id="aclDialogTitle">Are you sure?</div>
+        <div class="acl-dialog-msg"   id="aclDialogMsg">This action cannot be undone.</div>
+        <div class="acl-dialog-btns">
+            <button class="acl-dialog-cancel"  onclick="closeDialog(false)">Cancel</button>
+            <button class="acl-dialog-confirm" id="aclDialogConfirm">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════ TOAST ════ -->
+<div class="acl-toast" id="aclToast"></div>
+
+<!-- ════ SERVER WAKE BANNER ════ -->
+<div class="acl-wake-banner" id="aclWakeBanner" style="display:none;">
+    <i class="fa-solid fa-circle-notch fa-spin" id="aclWakeIcon"></i>
+    <span id="aclWakeMsg">Connecting to server…</span>
+</div>
+
+<!-- ════ SCRIPTS ════ -->
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="admin-cloud.js"></script>
+<script>
+/* Wake-up banner — listens for jasa:server-wake events from env-config.js */
+(function () {
+    var banner  = document.getElementById('aclWakeBanner');
+    var msg     = document.getElementById('aclWakeMsg');
+    var icon    = document.getElementById('aclWakeIcon');
+    var hideTimer = null;
+
+    var MESSAGES = {
+        connecting: 'Connecting to server…',
+        retrying:   'Server is waking up — please wait…',
+        ready:      'Server connected ✓',
+        failed:     'Server unreachable — some features may be unavailable',
+    };
+
+    window.addEventListener('jasa:server-wake', function (e) {
+        var status = e.detail && e.detail.status;
+        if (!banner || !msg) return;
+        clearTimeout(hideTimer);
+
+        msg.textContent = MESSAGES[status] || status;
+        banner.className = 'acl-wake-banner acl-wake-banner--' + status;
+        banner.style.display = 'flex';
+
+        // Swap spinning icon for checkmark/cross on terminal states
+        if (status === 'ready') {
+            icon.className = 'fa-solid fa-circle-check';
+            hideTimer = setTimeout(function () { banner.style.display = 'none'; }, 2500);
+        } else if (status === 'failed') {
+            icon.className = 'fa-solid fa-circle-exclamation';
+        } else {
+            icon.className = 'fa-solid fa-circle-notch fa-spin';
+        }
+    });
+})();
+</script>
+</body>
+</html>
