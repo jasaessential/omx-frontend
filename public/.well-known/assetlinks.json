@@ -1,8 +1,16 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "com.omx.twa",
-        "sha256_cert_fingerprints": ["97:62:C1:E6:22:8C:75:A6:5A:0B:73:6C:76:CA:02:50:60:0E:B4:CF:22:10:CE:E9:A0:1E:F4:1A:8F:8B:32:CD"]
-      }
-    }]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.omx.twa",
+      "sha256_cert_fingerprints": [
+        "97:62:C1:E6:22:8C:75:A6:5A:0B:73:6C:76:CA:02:50:60:0E:B4:CF:22:10:CE:E9:A0:1E:F4:1A:8F:8B:32:CD",
+        "41:7B:42:2C:60:34:0D:82:7A:E7:E1:9A:49:1D:37:F0:C0:2D:98:BC:87:E4:F5:79:3B:A1:EB:BE:AD:2C:9C:CC",
+        "E1:B8:90:02:B6:68:AE:0B:D8:8F:A0:A6:5A:10:98:49:5A:D7:CE:72:44:08:D5:6C:40:0A:8C:8F:64:82:20:3F"
+      ]
+    }
+  }
+]
