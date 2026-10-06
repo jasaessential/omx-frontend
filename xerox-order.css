@@ -2337,3 +2337,40 @@
 
 .cart-sum-discount, .co-discount { color: #16a34a; font-weight: 800; }
 [data-theme="dark"] .cart-sum-discount, [data-theme="dark"] .co-discount { color: #4ade80; }
+
+
+/* ── Step 1 now carries shop type + delivery/pickup (merged from old steps 2 & 3) ── */
+#xoStep1Prefs { margin-top: 6px; animation: xoLocFieldIn 0.22s ease forwards; }
+.xo-prefs-label {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--txt2, #374151);
+    margin: 4px 0 8px;
+}
+#xoStep1Prefs .xo-delivery-options { gap: 8px; margin-bottom: 14px; }
+#xoStep1Prefs .xo-delivery-card { padding: 12px 12px; }
+.xo-delivery-card--locked { opacity: 0.45; cursor: not-allowed; }
+.xo-delivery-card--locked:hover { transform: none; background: var(--bg-white, #fff); border-color: var(--border, #e5e7eb); }
+.xo-s5-upload-zone.xo-s5-drag { border-color: var(--primary, #2D8CF0); background: var(--primary-faint, #eef5ff); }
+
+
+/* ── Map pin block (step 1) ── */
+.xo-map-block { margin-bottom: 4px; }
+.xo-map-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.xo-map-btn {
+    flex: 1; padding: 11px 10px; border-radius: 12px; border: 1.5px solid var(--border, #e5e7eb);
+    background: var(--bg, #f2f4f8); color: var(--txt2, #374151); font: inherit; font-size: .8rem; font-weight: 800;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.xo-map-btn:hover { border-color: var(--primary, #2D8CF0); background: var(--primary-faint, #eef5ff); }
+.xo-map-btn:disabled { opacity: .6; cursor: wait; }
+#xoMapHost { margin-bottom: 10px; }
+.xo-pin-text {
+    display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 700; color: #16a34a;
+    background: rgba(22,163,74,.08); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px;
+}
+.xo-pin-text button { margin-left: auto; border: 0; background: none; color: #ef4444; font: inherit; font-weight: 800; cursor: pointer; }
+.xo-map-or { display: flex; align-items: center; gap: 10px; font-size: .72rem; font-weight: 700; color: var(--txt3, #6b7280); margin: 6px 0 12px; }
+.xo-map-or::before, .xo-map-or::after { content: ''; flex: 1; height: 1px; background: var(--border, #e5e7eb); }
+.xo-picker-dist { display: inline-flex; align-items: center; gap: 4px; font-size: .7rem; font-weight: 800; color: var(--primary, #2D8CF0); margin-left: 6px; }
+.xo-picker-nearest { background: #dcfce7; color: #16a34a; font-size: .62rem; font-weight: 800; padding: 2px 7px; border-radius: 50px; margin-left: 6px; }

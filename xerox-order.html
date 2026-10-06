@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="xerox-order.css?v=20261001c">
+    <link rel="stylesheet" href="xerox-order.css?v=20261006b">
     <link rel="stylesheet" href="wallet-checkout.css?v=20260925a">
 
     <!-- PDF.js for page counting -->
@@ -90,17 +90,13 @@
         <div id="xoLocationOverlay">
             <div class="xo-location-card" id="xoLocationCard">
 
-                <!-- Step indicators -->
+                <!-- Step indicators: Where & how (1) → Shop (4) → Upload (5). Ids kept so the step helpers still work. -->
                 <div class="xo-loc-steps">
                     <div class="xo-loc-step active" id="xoStep1Dot"><span>1</span></div>
                     <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep2Dot"><span>2</span></div>
+                    <div class="xo-loc-step" id="xoStep4Dot"><span>2</span></div>
                     <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep3Dot"><span>3</span></div>
-                    <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep4Dot"><span>4</span></div>
-                    <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep5Dot"><span>5</span></div>
+                    <div class="xo-loc-step" id="xoStep5Dot"><span>3</span></div>
                 </div>
 
                 <!-- ── STEP 1: Location ── -->
@@ -109,9 +105,24 @@
                         <i class="fa-solid fa-location-dot"></i>
                     </div>
                     <h2 class="xo-location-title">Where are you located?</h2>
-                    <p class="xo-location-sub">We'll show you xerox shops near you.</p>
+                    <p class="xo-location-sub">Tell us where you are and how you want your prints — we'll show the shops near you.</p>
 
                     <div class="xo-location-form">
+                        <!-- Map: pin your spot (GPS or on the map) to see the nearest shops first -->
+                        <div class="xo-map-block">
+                            <div class="xo-map-actions">
+                                <button type="button" class="xo-map-btn" id="xoUseGpsBtn" onclick="useMyLocation()">
+                                    <i class="fa-solid fa-location-crosshairs"></i> Use my location
+                                </button>
+                                <button type="button" class="xo-map-btn" id="xoToggleMapBtn" onclick="toggleLocationMap()">
+                                    <i class="fa-solid fa-map-location-dot"></i> <span id="xoToggleMapLbl">Pick on map</span>
+                                </button>
+                            </div>
+                            <div id="xoMapHost" style="display:none;"></div>
+                            <div class="xo-pin-text" id="xoPinText" style="display:none;"></div>
+                            <div class="xo-map-or"><span>or choose your area</span></div>
+                        </div>
+
                         <div class="xo-location-field">
                             <label class="xo-location-label">State</label>
                             <div class="xo-location-select-wrap" id="xoStateWrap">
@@ -142,22 +153,11 @@
                             </div>
                         </div>
 
-                        <button class="xo-location-btn" id="xoLocationConfirmBtn" onclick="goToStep2()" disabled>
-                            Next <i class="fa-solid fa-arrow-right"></i>
-                        </button>
-                        <div id="xoStep1ShopBadge" style="display:none;margin-top:12px;font-size:.82rem;font-weight:700;color:var(--primary);text-align:center;"></div>
-                    </div>
-                </div>
-
-                <!-- ── STEP 2: Shop or College ── -->
-                <div id="xoLocStep2" style="display:none;">
-                    <div class="xo-location-icon" style="background:rgba(139,92,246,0.1);color:#8b5cf6;">
-                        <i class="fa-solid fa-building"></i>
-                    </div>
-                    <h2 class="xo-location-title">What type of place?</h2>
-                    <p class="xo-location-sub">We'll filter the right centers for you.</p>
-
-                    <div class="xo-delivery-options">
+                        
+                        <!-- Shown once the location is picked: shop type + delivery/pickup (was steps 2 & 3) -->
+                        <div id="xoStep1Prefs" style="display:none;">
+                            <div class="xo-prefs-label">What type of place?</div>
+                            <div class="xo-delivery-options">
                         <div class="xo-delivery-card" id="xoOptShop" onclick="selectPlaceType('shop')">
                             <div class="xo-delivery-card-icon" style="background:rgba(45,140,240,0.1);color:var(--primary,#2D8CF0);">
                                 <i class="fa-solid fa-store"></i>
@@ -180,26 +180,8 @@
                             <div class="xo-delivery-radio" id="xoRadioCollege"></div>
                         </div>
                     </div>
-
-                    <div class="xo-loc-step2-footer">
-                        <button class="xo-loc-back-btn" onclick="goToStep1()">
-                            <i class="fa-solid fa-arrow-left"></i> Back
-                        </button>
-                        <button class="xo-location-btn xo-loc-next-btn" id="xoStep2NextBtn" onclick="goToStep3()" disabled>
-                            Next <i class="fa-solid fa-arrow-right"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ── STEP 3: Delivery or Pickup ── -->
-                <div id="xoLocStep3" style="display:none;">
-                    <div class="xo-location-icon" style="background:rgba(22,163,74,0.1);color:#16a34a;">
-                        <i class="fa-solid fa-box-open"></i>
-                    </div>
-                    <h2 class="xo-location-title">How do you want it?</h2>
-                    <p class="xo-location-sub">Choose how you'd like to receive your prints.</p>
-
-                    <div class="xo-delivery-options">
+                            <div class="xo-prefs-label">How do you want it?</div>
+                            <div class="xo-delivery-options">
                         <div class="xo-delivery-card" id="xoOptDelivery" onclick="selectOrderType('delivery')">
                             <div class="xo-delivery-card-icon" style="background:rgba(45,140,240,0.1);color:var(--primary,#2D8CF0);">
                                 <i class="fa-solid fa-truck-fast"></i>
@@ -222,16 +204,14 @@
                             <div class="xo-delivery-radio" id="xoRadioPickup"></div>
                         </div>
                     </div>
+                        </div>
 
-                    <div class="xo-loc-step2-footer">
-                        <button class="xo-loc-back-btn" onclick="goToStep2Back()">
-                            <i class="fa-solid fa-arrow-left"></i> Back
-                        </button>
-                        <button class="xo-location-btn xo-loc-next-btn" id="xoStep3NextBtn" onclick="goToStep4()" disabled>
+                        <button class="xo-location-btn" id="xoLocationConfirmBtn" onclick="goToStep2()" disabled>
                             Next <i class="fa-solid fa-arrow-right"></i>
                         </button>
+                        <div id="xoStep1ShopBadge" style="display:none;margin-top:12px;font-size:.82rem;font-weight:700;color:var(--primary);text-align:center;"></div>
                     </div>
-                </div><!-- end xoLocStep3 -->
+                </div>
 
                 <!-- ── STEP 4: Pick your shop ── -->
                 <div id="xoLocStep4" style="display:none;">
@@ -560,7 +540,7 @@
     <!-- ════ SCRIPTS ════ -->
     <script src="app.js"></script>
     <script type="module" src="auth-header.js"></script>
-    <script type="module" src="xerox-order.js?v=20261001c"></script>
+    <script type="module" src="xerox-order.js?v=20261006b"></script>
     <!-- Razorpay Checkout SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </body>

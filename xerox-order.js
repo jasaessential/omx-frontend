@@ -18,6 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { createMapPicker, getCurrentPosition, haversineKm, hasCoords } from './geo-map.js';
 import { quoteOrder, priceChanged, cancelUnpaidOrders } from './order-quote-client.js';
 import { validateCoupon, redeemCoupon, releaseCoupon, calcDiscount }
     from './coupon-client.js';
@@ -231,6 +232,21 @@ let othersFastPath    = false;     // true when "Others" skipped steps 2-4 (no s
 let _wizardShopsReady = null;      // promise for the wizard's initial fetchShops()
 let otherShopsConfig  = null;      // { stationary, books, xerox, kits } — admin-set fallback shops
 const LOCATION_KEY    = 'jasa_xerox_location_v3';
+const PIN_KEY         = 'jasa_xerox_pin_v1';
+
+/* ════ MAP PIN ════
+   The customer's pinned position (GPS or map). With a pin: shops that have coordinates
+   are sorted nearest-first and show their distance; delivery is limited to each shop's
+   radius. With a pin and no state picked, only shops whose radius covers the pin are listed. */
+let userPin = null;
+try {
+    const p = JSON.parse(localStorage.getItem(PIN_KEY) || 'null');
+    if (p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) userPin = p;
+} catch (_) {}
+let locMapCtl = null;                 // map picker controller (step 1)
+const shopDistKm = new Map();         // shopId -> km from the pin (kept out of the shop objects/caches)
+const DEFAULT_RADIUS_KM = 10;
+const shopRadius = s => Number(s.serviceRadiusKm) > 0 ? Number(s.serviceRadiusKm) : DEFAULT_RADIUS_KM;
 
 /* ════ PAYMENT CONFIG STATE ════ */
 // Fetched fresh from KV on every checkout open — no localStorage cache.
@@ -297,8 +313,8 @@ async function initLocationPicker() {
         const saved = localStorage.getItem(LOCATION_KEY);
         if (saved) {
             const { stateId, districtId, cityId, orderType, placeType, shopId, othersState, othersDistrict, othersCity } = JSON.parse(saved);
-            if (stateId && orderType && placeType && shopId) {
-                selectedStateId      = stateId;
+            if ((stateId || userPin) && orderType && placeType && shopId) {
+                selectedStateId      = stateId || null;
                 selectedDistrictId   = districtId || null;
                 selectedCityId       = cityId || null;
                 selectedOrderType    = orderType;
@@ -374,6 +390,91 @@ async function initLocationPicker() {
     }
 }
 
+/* ── Step 1 map: GPS button + draggable/zoomable map ── */
+function paintPinText() {
+    const el = document.getElementById('xoPinText');
+    if (!el) return;
+    if (!userPin) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.display = 'flex';
+    el.innerHTML = `<i class="fa-solid fa-location-dot"></i> Location pinned (${userPin.lat.toFixed(4)}, ${userPin.lng.toFixed(4)}) <button type="button" onclick="clearPin()">Clear</button>`;
+}
+
+function setPin(p) {
+    userPin = { lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5 };
+    try { localStorage.setItem(PIN_KEY, JSON.stringify(userPin)); } catch (_) {}
+    paintPinText();
+    refreshStep1();
+}
+
+window.clearPin = function() { clearPin(false); };
+function clearPin(silent) {
+    userPin = null;
+    try { localStorage.removeItem(PIN_KEY); } catch (_) {}
+    shopDistKm.clear();
+    locMapCtl?.setValue(null);
+    paintPinText();
+    if (!silent) refreshStep1();
+}
+
+window.useMyLocation = async function() {
+    const btn = document.getElementById('xoUseGpsBtn');
+    if (btn) btn.disabled = true;
+    try {
+        const p = await getCurrentPosition();
+        setPin(p);
+        locMapCtl?.setValue(userPin, 17);
+    } catch (e) {
+        showToast(e.message || 'Could not get your location.', 'error');
+        const host = document.getElementById('xoMapHost');
+        if (host && host.style.display === 'none') window.toggleLocationMap();   // fall back to picking on the map
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.toggleLocationMap = async function() {
+    const host = document.getElementById('xoMapHost');
+    const lbl  = document.getElementById('xoToggleMapLbl');
+    if (!host) return;
+    const open = host.style.display === 'none';
+    host.style.display = open ? 'block' : 'none';
+    if (lbl) lbl.textContent = open ? 'Hide map' : (userPin ? 'Change on map' : 'Pick on map');
+    if (!open) return;
+    if (!locMapCtl) {
+        locMapCtl = await createMapPicker(host, {
+            value: userPin,
+            height: 280,
+            onChange: p => setPin(p)
+        });
+    } else {
+        locMapCtl.invalidate();
+    }
+    /* show the xerox shops that have a pin, so customers can see what is around */
+    locMapCtl.setShops(allShopsRaw.filter(s => hasCoords(s)));
+};
+
+document.addEventListener('DOMContentLoaded', () => { paintPinText(); if (userPin) refreshStep1(); });
+
+/* Step 1 now holds location + shop type + delivery/pickup (old steps 2 & 3).
+   Reveal the preference cards once a location is complete and gate the Next button. */
+function hasCompleteLocation() {
+    if (!selectedStateId && userPin) return true;   // map-only location
+    return !!(selectedStateId && (
+        isOthersState ||
+        (selectedDistrictId && (isOthersDistrict || selectedCityId))
+    ));
+}
+function refreshStep1() {
+    const prefs = document.getElementById('xoStep1Prefs');
+    const btn   = document.getElementById('xoLocationConfirmBtn');
+    const ok    = hasCompleteLocation();
+    const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
+    if (prefs) prefs.style.display = ok ? 'block' : 'none';
+    /* "Others" may take the fast path to upload, so it only needs the location */
+    if (btn) btn.disabled = !(ok && (anyOthers || (selectedPlaceType && selectedOrderType)));
+    updateWizardStepCounts();
+}
+
 function onStateChange() {
     const stateId        = document.getElementById('xoStateSelect').value;
     const districtField  = document.getElementById('xoDistrictField');
@@ -390,6 +491,7 @@ function onStateChange() {
     confirmBtn.disabled = true;
     cityField.style.display     = 'none';
     districtField.style.display = 'none';
+    refreshStep1();
 
     if (!stateId) {
         selectedStateId = null;
@@ -400,8 +502,7 @@ function onStateChange() {
     if (stateId === '__others__') {
         selectedStateId    = '__others__';
         isOthersState      = true;
-        confirmBtn.disabled = false;
-        updateWizardStepCounts();
+        refreshStep1();
         return;
     }
 
@@ -427,6 +528,7 @@ function onDistrictChange() {
     cityField.style.display = 'none';
     selectedCityId = null;
     confirmBtn.disabled = true;
+    refreshStep1();
 
     if (!districtId) {
         selectedDistrictId = null;
@@ -438,8 +540,7 @@ function onDistrictChange() {
     if (districtId === '__others__') {
         selectedDistrictId = '__others__';
         isOthersDistrict   = true;
-        confirmBtn.disabled = false;
-        updateWizardStepCounts();
+        refreshStep1();
         return;
     }
 
@@ -462,8 +563,7 @@ function onDistrictChange() {
             selectedCityId  = citySelect.value || null;
             isOthersCity    = false;
         }
-        confirmBtn.disabled = !selectedCityId;
-        updateWizardStepCounts();
+        refreshStep1();
     };
 }
 
@@ -562,6 +662,18 @@ function matchShopWithFilters(s, filters = {}) {
     const placeType  = filters.placeType  !== undefined ? filters.placeType  : selectedPlaceType;
     const orderType  = filters.orderType  !== undefined ? filters.orderType  : selectedOrderType;
 
+    /* ── Map pin ────────────────────────────────────────────────────────── */
+    if (userPin) {
+        const d = hasCoords(s) ? haversineKm(userPin, { lat: Number(s.lat), lng: Number(s.lng) }) : null;
+        if (!stateId) {
+            /* Map-only location: shop must have a pin and cover the customer's spot */
+            if (d === null || d > shopRadius(s)) return false;
+        } else if (orderType === 'delivery' && d !== null && d > shopRadius(s)) {
+            /* Delivery cannot reach this far (pickup is still allowed) */
+            return false;
+        }
+    }
+
     /* ── "Others" handling ──────────────────────────────────────────────── */
     /* When state, district OR city is "others", only the admin-configured fallback
        xerox shop should appear. We check if this shop is that fallback. */
@@ -654,8 +766,9 @@ function updateWizardStepCounts() {
     if (!allShopsRaw) return;
 
     // Step 1 badge & next button count
-    if (selectedStateId && (isOthersState || (selectedDistrictId && (isOthersDistrict || selectedCityId)))) {
-        const step1Count = getMatchingShopsCount({ placeType: null, orderType: null });
+    if (hasCompleteLocation()) {
+        const bothPicked = !!(selectedPlaceType && selectedOrderType);
+        const step1Count = getMatchingShopsCount(bothPicked ? {} : { placeType: null, orderType: null });
         const badge = document.getElementById('xoStep1ShopBadge');
         if (badge) {
             badge.style.display = 'block';
@@ -701,10 +814,7 @@ function updateWizardStepCounts() {
 
 window.confirmLocation = async function() {
     const anyOthers   = isOthersState || isOthersDistrict || isOthersCity;
-    const hasLocation = selectedStateId && (
-        isOthersState ||
-        (selectedDistrictId && (isOthersDistrict || selectedCityId))
-    );
+    const hasLocation = hasCompleteLocation();
     if (!hasLocation || !selectedPlaceType || !selectedOrderType || !selectedPickerShopId) return;
 
     const state    = isOthersState ? null : allStates.find(s => s.id === selectedStateId);
@@ -713,7 +823,7 @@ window.confirmLocation = async function() {
         ? null : allCities.find(c => c.id === selectedCityId);
 
     const displayName = anyOthers ? 'Others'
-        : (city?.name || district?.name || state?.name || '');
+        : (city?.name || district?.name || state?.name || (userPin ? 'Pinned location' : ''));
 
     try {
         localStorage.setItem(LOCATION_KEY, JSON.stringify({
@@ -801,7 +911,7 @@ window.confirmLocationAndProceed = function() {
     const district   = (isOthersState || isOthersDistrict) ? null : allDistricts.find(d => d.id === selectedDistrictId);
     const city       = (isOthersState || isOthersDistrict || isOthersCity || !selectedCityId)
         ? null : allCities.find(c => c.id === selectedCityId);
-    const displayCity = anyOthers ? 'Others' : (city?.name || district?.name || state?.name || '');
+    const displayCity = anyOthers ? 'Others' : (city?.name || district?.name || state?.name || (userPin ? 'Pinned location' : ''));
     try {
         localStorage.setItem(LOCATION_KEY, JSON.stringify({
             stateId:      selectedStateId,
@@ -899,13 +1009,7 @@ window.goToStep2 = async function() {
     const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
 
     /* Validate: need at least a state selection */
-    const hasLocation = selectedStateId && (
-        isOthersState ||                              // stopped at state level
-        (selectedDistrictId && (                      // went into districts
-            isOthersDistrict ||                       // stopped at district level
-            selectedCityId                            // selected a city (or city-others)
-        ))
-    );
+    const hasLocation = hasCompleteLocation();
     if (!hasLocation) return;
 
     othersFastPath = false;
@@ -923,94 +1027,20 @@ window.goToStep2 = async function() {
         }
     }
 
-    /* Normal flow */
-    _hideStep('xoLocStep1');
-    _showStep('xoLocStep2');
-    _markDone('xoStep1Dot');
-    _markActive('xoStep2Dot');
-    _markIdle('xoStep3Dot');
-    _markIdle('xoStep4Dot');
-    _markIdle('xoStep5Dot');
-    updateWizardStepCounts();
-};
-
-/* Step 2 → Step 1 */
-window.goToStep1 = function() {
-    _hideStep('xoLocStep2');
-    _showStep('xoLocStep1');
-    _markActive('xoStep1Dot');
-    _markIdle('xoStep2Dot');
-    _markIdle('xoStep3Dot');
-    _markIdle('xoStep4Dot');
-    /* Reset place type */
-    selectedPlaceType = null;
-    document.getElementById('xoOptShop')?.classList.remove('selected');
-    document.getElementById('xoOptCollege')?.classList.remove('selected');
-    document.getElementById('xoRadioShop')?.classList.remove('checked');
-    document.getElementById('xoRadioCollege')?.classList.remove('checked');
-    const btn = document.getElementById('xoStep2NextBtn');
-    if (btn) btn.disabled = true;
-};
-
-/* Step 2 → Step 3 (or Step 4 if College selected) */
-window.goToStep3 = function() {
-    if (!selectedPlaceType) return;
-
-    if (selectedPlaceType === 'college') {
-        selectedOrderType = 'pickup';
-        window.selectedOrderType = 'pickup';
-        _hideStep('xoLocStep2');
-        _showStep('xoLocStep4');
-        _markDone('xoStep1Dot');
-        _markDone('xoStep2Dot');
-        _markDone('xoStep3Dot');
-        _markActive('xoStep4Dot');
-        _markIdle('xoStep5Dot');
-        selectedPickerShopId = null;
-        const nextBtn = document.getElementById('xoStep4NextBtn');
-        if (nextBtn) nextBtn.disabled = true;
-        renderStep4Shops();
+    /* Normal flow: shop type + delivery/pickup now live on step 1, so go straight to the shop list */
+    if (!selectedPlaceType || !selectedOrderType) {
+        showToast('Choose the type of place and how you want it.', 'warning');
         return;
     }
-
-    _hideStep('xoLocStep2');
-    _showStep('xoLocStep3');
-    _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markActive('xoStep3Dot');
-    _markIdle('xoStep4Dot');
-    _markIdle('xoStep5Dot');
-    updateWizardStepCounts();
+    window.goToStep4();
 };
 
-/* Step 3 → Step 2 */
-window.goToStep2Back = function() {
-    _hideStep('xoLocStep3');
-    _showStep('xoLocStep2');
-    _markDone('xoStep1Dot');
-    _markActive('xoStep2Dot');
-    _markIdle('xoStep3Dot');
-    _markIdle('xoStep4Dot');
-    /* Reset order type */
-    selectedOrderType = null;
-    window.selectedOrderType = null;
-    document.getElementById('xoOptDelivery')?.classList.remove('selected');
-    document.getElementById('xoOptPickup')?.classList.remove('selected');
-    document.getElementById('xoRadioDelivery')?.classList.remove('checked');
-    document.getElementById('xoRadioPickup')?.classList.remove('checked');
-    const btn = document.getElementById('xoStep3NextBtn');
-    if (btn) btn.disabled = true;
-    updateWizardStepCounts();
-};
-
-/* Step 3 → Step 4 */
+/* Step 1 → Shop list */
 window.goToStep4 = function() {
     if (!selectedOrderType) return;
-    _hideStep('xoLocStep3');
+    _hideStep('xoLocStep1');
     _showStep('xoLocStep4');
     _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markDone('xoStep3Dot');
     _markActive('xoStep4Dot');
     _markIdle('xoStep5Dot');
     /* Reset any previously picked shop */
@@ -1020,28 +1050,15 @@ window.goToStep4 = function() {
     renderStep4Shops();
 };
 
-/* Step 4 → Step 3 (or Step 2 if College selected) */
+/* Step 4 → Step 1 (shop type + delivery/pickup are part of step 1 now) */
 window.goToStep3Back = function() {
     _hideStep('xoLocStep4');
-    if (selectedPlaceType === 'college') {
-        _showStep('xoLocStep2');
-        _markDone('xoStep1Dot');
-        _markActive('xoStep2Dot');
-        _markIdle('xoStep3Dot');
-        _markIdle('xoStep4Dot');
-        _markIdle('xoStep5Dot');
-        selectedPickerShopId = null;
-        updateWizardStepCounts();
-        return;
-    }
-    _showStep('xoLocStep3');
-    _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markActive('xoStep3Dot');
+    _showStep('xoLocStep1');
+    _markActive('xoStep1Dot');
     _markIdle('xoStep4Dot');
     _markIdle('xoStep5Dot');
     selectedPickerShopId = null;
-    updateWizardStepCounts();
+    refreshStep1();
 };
 
 /* ════ STEP 5 HELPERS ════ */
@@ -1210,6 +1227,21 @@ function renderStep5() {
         inp.addEventListener('change', async e => {
             if (e.target.files.length > 0) await handleFilesStep5(e.target.files, shopCfg);
             e.target.value = '';
+        });
+    }
+
+    /* Drag & drop files onto the upload zone (wired once; reads the current shop's config at drop time) */
+    const zone = document.getElementById('xoS5UploadZone');
+    if (zone && !zone._dropWired) {
+        zone._dropWired = true;
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('xo-s5-drag'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('xo-s5-drag'));
+        zone.addEventListener('drop', async e => {
+            e.preventDefault();
+            zone.classList.remove('xo-s5-drag');
+            if (!currentUser && !localStorage.getItem('jasa_user_cache')) { window.triggerUploadStep5(); return; }
+            const files = Array.from(e.dataTransfer?.files || []);
+            if (files.length) await handleFilesStep5(files, getShopXeroxConfig(selectedPickerShopId));
         });
     }
 
@@ -1413,7 +1445,7 @@ function renderStep4Shops() {
                 <div class="xo-picker-empty-sub">
                     ${selectedOrderType === 'delivery'
                         ? 'No shops offer home delivery in your area yet. Go back and select "Pick Up Myself".'
-                        : 'No shops available in your area yet.'}
+                        : (userPin && !selectedStateId ? 'No shop covers your pinned location yet. Try a different spot, or choose your state / district / city instead.' : 'No shops available in your area yet.')}
                 </div>
             </div>`;
         return;
@@ -1425,7 +1457,7 @@ function renderStep4Shops() {
     if (countEl)  countEl.style.display = 'flex';
     if (countNum) countNum.textContent  = shops.length;
 
-    list.innerHTML = shops.map(s => {
+    list.innerHTML = shops.map((s, idx) => {
         const xeroxRules = s.deliveryPrices?.xerox || [];
         const freeRule   = xeroxRules.find(r => r.fee === 0);
         const offersDelivery = s.homeDelivery === true;
@@ -1449,7 +1481,7 @@ function renderStep4Shops() {
              onclick="selectPickerShop('${s.id}')">
             <div class="xo-picker-shop-radio ${isSelected ? 'checked' : ''}"></div>
             <div class="xo-picker-shop-body">
-                <div class="xo-picker-shop-name">${esc(s.name)}</div>
+                <div class="xo-picker-shop-name">${esc(s.name)}${distBadge(s, idx === 0)}</div>
                 <div class="xo-picker-shop-addr">
                     <i class="fa-solid fa-location-dot"></i> ${esc(s.address || 'Local Center')}
                     ${s.locationLink ? `<br><a href="${esc(s.locationLink)}" target="_blank" onclick="event.stopPropagation();" style="color:var(--primary); font-weight:600; text-decoration:none; display:inline-block; margin-top:4px;"><i class="fa-solid fa-map-location-dot"></i> View on Map</a>` : ''}
@@ -1472,33 +1504,40 @@ window.selectPickerShop = function(id) {
     if (btn) btn.disabled = false;
 };
 
-/* Select place type (step 2) */
+/* Mark the delivery/pickup cards; College is pickup-only so delivery is locked while it is chosen */
+function paintOrderType(type) {
+    document.getElementById('xoOptDelivery')?.classList.toggle('selected', type === 'delivery');
+    document.getElementById('xoOptPickup')?.classList.toggle('selected',   type === 'pickup');
+    document.getElementById('xoRadioDelivery')?.classList.toggle('checked', type === 'delivery');
+    document.getElementById('xoRadioPickup')?.classList.toggle('checked',   type === 'pickup');
+}
+
+/* Select place type */
 window.selectPlaceType = function(type) {
     selectedPlaceType = type;
     if (type === 'college') {
         selectedOrderType = 'pickup';
         window.selectedOrderType = 'pickup';
+        paintOrderType('pickup');
     }
+    document.getElementById('xoOptDelivery')?.classList.toggle('xo-delivery-card--locked', type === 'college');
     document.getElementById('xoOptShop')?.classList.toggle('selected',    type === 'shop');
     document.getElementById('xoOptCollege')?.classList.toggle('selected', type === 'college');
     document.getElementById('xoRadioShop')?.classList.toggle('checked',    type === 'shop');
     document.getElementById('xoRadioCollege')?.classList.toggle('checked', type === 'college');
-    const btn = document.getElementById('xoStep2NextBtn');
-    if (btn) btn.disabled = false;
-    updateWizardStepCounts();
+    refreshStep1();
 };
 
-/* Select delivery type (step 3) */
+/* Select delivery type */
 window.selectOrderType = function(type) {
+    if (type === 'delivery' && selectedPlaceType === 'college') {
+        showToast('College shops are pickup only.', 'warning');
+        return;
+    }
     selectedOrderType        = type;
     window.selectedOrderType = type;
-    document.getElementById('xoOptDelivery')?.classList.toggle('selected', type === 'delivery');
-    document.getElementById('xoOptPickup')?.classList.toggle('selected',   type === 'pickup');
-    document.getElementById('xoRadioDelivery')?.classList.toggle('checked', type === 'delivery');
-    document.getElementById('xoRadioPickup')?.classList.toggle('checked',   type === 'pickup');
-    const btn = document.getElementById('xoStep3NextBtn');
-    if (btn) btn.disabled = false;
-    updateWizardStepCounts();
+    paintOrderType(type);
+    refreshStep1();
 };
 
 function hideLocationOverlay() {
@@ -1556,6 +1595,7 @@ window.changeLocation = function() {
     isOthersDistrict     = false;
     isOthersCity         = false;
     window.selectedOrderType = null;
+    clearPin(true);
 
     /* Reset selects */
     const stateSelect    = document.getElementById('xoStateSelect');
@@ -1573,9 +1613,10 @@ window.changeLocation = function() {
 
     /* Reset all steps to initial state */
     _showStep('xoLocStep1');
-    _hideStep('xoLocStep2');
-    _hideStep('xoLocStep3');
     _hideStep('xoLocStep4');
+    const prefsEl = document.getElementById('xoStep1Prefs');
+    if (prefsEl) prefsEl.style.display = 'none';
+    document.getElementById('xoOptDelivery')?.classList.remove('xo-delivery-card--locked');
     _markActive('xoStep1Dot');
     _markIdle('xoStep2Dot');
     _markIdle('xoStep3Dot');
@@ -1586,8 +1627,7 @@ window.changeLocation = function() {
         document.getElementById(id)?.classList.remove('selected'));
     ['xoRadioShop','xoRadioCollege','xoRadioDelivery','xoRadioPickup'].forEach(id =>
         document.getElementById(id)?.classList.remove('checked'));
-    const s2btn = document.getElementById('xoStep2NextBtn');
-    const s3btn = document.getElementById('xoStep3NextBtn');
+    const s2btn = null, s3btn = null;
     const s4btn = document.getElementById('xoStep4NextBtn');
     const s5btn = document.getElementById('xoStep5ProceedBtn');
     if (s2btn) s2btn.disabled = true;
@@ -1821,7 +1861,21 @@ async function fetchShops(forceFresh = false) {
 /* Filter shops to those serving the user's selected city/district/state, place type, and order delivery type */
 function filterShopsByLocation(shops) {
     if (!Array.isArray(shops)) return [];
-    return shops.filter(s => matchShopWithFilters(s));
+    const list = shops.filter(s => matchShopWithFilters(s));
+    shopDistKm.clear();
+    if (userPin) {
+        list.forEach(s => { if (hasCoords(s)) shopDistKm.set(s.id, haversineKm(userPin, { lat: Number(s.lat), lng: Number(s.lng) })); });
+        /* nearest first; shops without a pin keep their order after the ones with a distance */
+        list.sort((a, b) => (shopDistKm.has(a.id) ? shopDistKm.get(a.id) : Infinity) - (shopDistKm.has(b.id) ? shopDistKm.get(b.id) : Infinity));
+    }
+    return list;
+}
+
+/* "2.4 km" label + nearest badge for the shop list */
+function distBadge(s, isFirst) {
+    if (!shopDistKm.has(s.id)) return '';
+    const km = shopDistKm.get(s.id);
+    return `<span class="xo-picker-dist"><i class="fa-solid fa-route"></i> ${km < 10 ? km.toFixed(1) : Math.round(km)} km</span>${isFirst ? '<span class="xo-picker-nearest">Nearest</span>' : ''}`;
 }
 
 

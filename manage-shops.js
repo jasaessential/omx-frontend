@@ -3,6 +3,7 @@
    ═══════════════════════════════════════════════ */
 import { auth, db } from "./firebase-init.js";
 import { WORKER_URL, getAdminToken } from "./env-config.js";
+import { createMapPicker, hasCoords } from "./geo-map.js";
 import {
   collection,
   getDocs,
@@ -97,6 +98,66 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
+/* ─────────── Shop map pin ─────────── */
+let shopPin = null;
+let shopMap = null;
+
+/* Pull coordinates out of a pasted Google/OSM map link (…@12.97,77.59…, ?q=12.97,77.59, ll=, mlat/mlon) */
+function parseLatLngFromLink(link) {
+  if (!link) return null;
+  const pats = [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|ll|query)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/, /mlat=(-?\d+\.\d+)&mlon=(-?\d+\.\d+)/, /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/];
+  for (const re of pats) {
+    const m = link.match(re);
+    if (m) {
+      const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+    }
+  }
+  return null;
+}
+
+function updatePinText() {
+  const el = document.getElementById("shopPinText");
+  if (!el) return;
+  el.textContent = shopPin
+    ? `Pinned at ${shopPin.lat.toFixed(5)}, ${shopPin.lng.toFixed(5)}`
+    : "No pin set — customers will not see distance to this shop.";
+}
+
+async function initShopMap(pin) {
+  shopPin = pin || null;
+  updatePinText();
+  const host = document.getElementById("shopMapHost");
+  if (!host) return;
+  if (shopMap) { try { shopMap.destroy(); } catch (_) {} shopMap = null; }
+  const radius = Number(document.getElementById("shopRadiusKm")?.value) || 0;
+  shopMap = await createMapPicker(host, {
+    value: shopPin,
+    withAddress: true,
+    radiusKm: radius,
+    height: 260,
+    onChange: (p, place) => {
+      shopPin = p;
+      updatePinText();
+      const addr = document.getElementById("shopAddress");
+      if (place?.address && addr && !addr.value.trim()) addr.value = place.address;
+      const link = document.getElementById("shopLocationLink");
+      if (link && !link.value.trim()) link.value = `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+    },
+  });
+  setTimeout(() => shopMap?.invalidate(), 150);
+}
+
+window.clearShopPin = function () {
+  shopPin = null;
+  updatePinText();
+  shopMap?.setValue(null);
+};
+
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "shopRadiusKm") shopMap?.setRadius(Number(e.target.value) || 0);
+});
+
 /* ─────────── Modal Management ─────────── */
 // Registered on window immediately so inline onclick handlers always resolve,
 // regardless of async initialisation order.
@@ -110,6 +171,7 @@ window.openShopModal = function () {
   resetForm();
   if (modalOverlay) modalOverlay.classList.add("active");
   document.body.style.overflow = "hidden";
+  initShopMap(null);
 };
 
 window.closeShopModal = function () {
@@ -1116,6 +1178,9 @@ function resetForm() {
   const dtEl = document.getElementById("shopDeliveryTime");
   if (dtEl) dtEl.value = "Within 24 hours";
 
+  const radEl = document.getElementById("shopRadiusKm");
+  if (radEl) radEl.value = 10;
+
   if (ownersChoices) ownersChoices.removeActiveItems();
   if (employeesChoices) employeesChoices.removeActiveItems();
   if (statesChoices) statesChoices.removeActiveItems();
@@ -1161,6 +1226,9 @@ window.editShop = function (id) {
   document.getElementById("shopAddress").value = data.address || "";
   document.getElementById("shopLocationLink").value = data.locationLink || "";
   document.getElementById("shopNotes").value = data.notes || "";
+  document.getElementById("shopRadiusKm").value = data.serviceRadiusKm || 10;
+  /* Saved pin, else try to read one from the pasted map link */
+  initShopMap(hasCoords(data) ? { lat: Number(data.lat), lng: Number(data.lng) } : parseLatLngFromLink(data.locationLink));
 
   // Shop type radio
   const typeVal = data.shopType === "college" ? "college" : "shop";
@@ -1378,6 +1446,9 @@ shopForm.addEventListener("submit", async (e) => {
       others: stdCheck.rules,
     },
     notes: document.getElementById("shopNotes").value.trim(),
+    lat: shopPin ? shopPin.lat : null,
+    lng: shopPin ? shopPin.lng : null,
+    serviceRadiusKm: Math.max(1, Number(document.getElementById("shopRadiusKm")?.value) || 10),
     status: "active",
   };
 

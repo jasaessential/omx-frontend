@@ -33,7 +33,7 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)
 
 # Code: browsers re-check with the server on every load (a cheap 304 when unchanged),
 # so a deploy reaches users immediately. Without this, JS/CSS were cached for 4 hours.

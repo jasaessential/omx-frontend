@@ -300,6 +300,17 @@
                 style="margin-bottom: 16px"
               />
 
+              <!-- Map pin: used by the order page to sort shops by distance -->
+              <label class="ms-label">Shop location on map</label>
+              <div id="shopMapHost" style="margin-bottom: 8px"></div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:.78rem;color:var(--txt3);">
+                <span id="shopPinText">No pin set — customers will not see distance to this shop.</span>
+                <button type="button" class="ms-btn-sm" onclick="clearShopPin()">Clear pin</button>
+                <label style="display:flex;align-items:center;gap:6px;margin-left:auto;">Delivery radius (km)
+                  <input type="number" id="shopRadiusKm" class="ms-input" min="1" max="500" step="1" value="10" style="width:80px;padding:6px 8px;">
+                </label>
+              </div>
+
               <div class="ms-row-head" style="margin-bottom: 4px">
                 <label class="ms-label" style="margin: 0"
                   >States <span class="req">*</span></label
