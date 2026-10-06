@@ -337,25 +337,32 @@ function getPrimaryImg() {
 function buildTags() {
     const tags  = [];
     const cat   = item.category;
+    const section = document.getElementById('detailsSection');
+    const wrap    = document.getElementById('productTags');
+
+    /* Wall posters: only the sizes that have a price, as size options */
+    if (cat === 'posters') {
+        const sizes = (item.types || []).filter(t => item.sizePrices?.[t]);
+        section.style.display = sizes.length ? '' : 'none';
+        section.querySelector('.id-section-title').textContent = 'Select Size';
+        wrap.innerHTML = sizes.map(s =>
+            `<button type="button" class="id-tag id-tag-size${s === selectedSize ? ' active' : ''}" onclick="selectSize('${esc(s)}')"><i class="fa-solid fa-layer-group"></i>${esc(s)}</button>`
+        ).join('');
+        return;
+    }
 
     if (cat) tags.push({ icon: 'fa-solid fa-tag', text: cat });
 
     (item.brands    || []).forEach(v => tags.push({ icon: 'fa-solid fa-award',        text: v }));
     (item.authors   || []).forEach(v => tags.push({ icon: 'fa-solid fa-pen-nib',      text: v }));
     (item.categories|| []).forEach(v => tags.push({ icon: 'fa-solid fa-bookmark',     text: v }));
-    (item.types     || []).forEach(v => tags.push({ icon: 'fa-solid fa-layer-group',  text: v,
-        size: item.sizePrices?.[v] ? v : '' }));
+    (item.types     || []).forEach(v => tags.push({ icon: 'fa-solid fa-layer-group',  text: v }));
     if (item.type)         tags.push({ icon: 'fa-solid fa-layer-group', text: item.type });
 
     if (!tags.length) return;
 
-    const section = document.getElementById('detailsSection');
-    const wrap    = document.getElementById('productTags');
     section.style.display = '';
-    wrap.innerHTML = tags.map(t => t.size
-        ? `<button type="button" class="id-tag id-tag-size${t.size === selectedSize ? ' active' : ''}" onclick="selectSize('${esc(t.size)}')"><i class="${t.icon}"></i>${t.text}</button>`
-        : `<span class="id-tag"><i class="${t.icon}"></i>${t.text}</span>`
-    ).join('');
+    wrap.innerHTML = tags.map(t => `<span class="id-tag"><i class="${t.icon}"></i>${t.text}</span>`).join('');
 }
 
 /* ── Description toggle ── */
