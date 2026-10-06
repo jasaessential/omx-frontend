@@ -436,6 +436,7 @@ window.refreshAllCache = function () {
     const STATIC_KEYS = [
         'jasa_xerox_config_v1',
         'jasa_xerox_shops_v1',
+        'jasa_xerox_shops_v2',
         'global_shops_data_v1',
         'jasa_orders_cache',
         'jasa_cache_version',

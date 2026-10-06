@@ -1652,7 +1652,7 @@ window.changeLocation = function() {
 
 const XO_CACHE_TTL       = 6 * 60 * 60 * 1000;   // 6 hours in ms
 const XO_CONFIG_CACHE_KEY = 'jasa_xerox_config_v1';
-const XO_SHOPS_CACHE_KEY  = 'jasa_xerox_shops_v1';
+const XO_SHOPS_CACHE_KEY  = 'jasa_xerox_shops_v2';
 
 async function fetchXeroxConfig() {
     /* 1. localStorage (6hr TTL) */
@@ -1749,7 +1749,7 @@ async function _revalidateShopsInBackground(cachedRawList) {
         /* Comprehensive fingerprint: compare key location & shop configuration fields.
            If anything changed (including states/districts/cities/address), update cache and re-render. */
         const fingerprint = list => list.map(s =>
-            `${s.id}|${s.name||''}|${s.shopType||''}|${s.homeDelivery}|${s.status||''}|${(s.services||[]).join(',')}|${s.deliveryTime||''}|${(s.states||[]).join(',')}|${(s.districts||[]).join(',')}|${(s.cities||[]).join(',')}|${(s.areas||[]).join(',')}|${s.address||''}`
+            `${s.id}|${s.name||''}|${s.shopType||''}|${s.homeDelivery}|${s.status||''}|${(s.services||[]).join(',')}|${s.deliveryTime||''}|${(s.states||[]).join(',')}|${(s.districts||[]).join(',')}|${(s.cities||[]).join(',')}|${(s.areas||[]).join(',')}|${s.address||''}|${s.lat ?? ''}|${s.lng ?? ''}|${s.serviceRadiusKm ?? ''}`
         ).sort().join(';');
 
         if (fingerprint(freshList) === fingerprint(cachedRawList)) return; /* no change */
