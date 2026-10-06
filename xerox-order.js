@@ -1655,32 +1655,29 @@ const XO_CONFIG_CACHE_KEY = 'jasa_xerox_config_v1';
 const XO_SHOPS_CACHE_KEY  = 'jasa_xerox_shops_v2';
 
 async function fetchXeroxConfig() {
-    /* 1. localStorage (6hr TTL) */
-    try {
-        const raw = localStorage.getItem(XO_CONFIG_CACHE_KEY);
-        if (raw) {
-            const { data, timestamp } = JSON.parse(raw);
-            if (Date.now() - timestamp < XO_CACHE_TTL && data?.paper?.length) {
-                xeroxConfig.paper      = data.paper;
-                xeroxConfig.binding    = data.binding    || [];
-                xeroxConfig.lamination = data.lamination || [];
-                return;
-            }
-        }
-    } catch (_) {}
+    const applyConfig = cfg => {
+        xeroxConfig.paper      = cfg.paper;
+        xeroxConfig.binding    = cfg.binding    || [];
+        xeroxConfig.lamination = cfg.lamination || [];
+    };
 
-    /* 2. Cloudflare Worker KV cache */
+    /* 1. Cloudflare Worker KV cache (always fetched, so price changes show at once) */
+    let workerReached = false;
     try {
         const res = await fetch(`${WORKER_URL}/api/config/xerox`, {
             signal: AbortSignal.timeout(4000)
         });
         if (res.ok) {
+            workerReached = true;
             const json = await res.json();
             const cfg  = json.config || json;
             if (cfg.paper?.length || cfg.binding?.length) {
-                xeroxConfig.paper      = (cfg.paper      || []).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                xeroxConfig.binding    = (cfg.binding    || []).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                xeroxConfig.lamination = (cfg.lamination || []).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+                const bySort = (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+                applyConfig({
+                    paper:      (cfg.paper      || []).sort(bySort),
+                    binding:    (cfg.binding    || []).sort(bySort),
+                    lamination: (cfg.lamination || []).sort(bySort),
+                });
                 try {
                     localStorage.setItem(XO_CONFIG_CACHE_KEY, JSON.stringify({
                         data:      { paper: xeroxConfig.paper, binding: xeroxConfig.binding, lamination: xeroxConfig.lamination },
@@ -1691,6 +1688,14 @@ async function fetchXeroxConfig() {
             }
         }
     } catch (_) { /* Worker unavailable — fall through */ }
+
+    /* 2. Worker unreachable — the copy saved on this device */
+    if (!workerReached) {
+        try {
+            const { data } = JSON.parse(localStorage.getItem(XO_CONFIG_CACHE_KEY) || '{}');
+            if (data?.paper?.length) { applyConfig(data); return; }
+        } catch (_) {}
+    }
 
     /* 3. Firestore fallback */
     try {
@@ -1746,11 +1751,8 @@ async function _revalidateShopsInBackground(cachedRawList) {
 
         if (!freshList.length) return;
 
-        /* Comprehensive fingerprint: compare key location & shop configuration fields.
-           If anything changed (including states/districts/cities/address), update cache and re-render. */
-        const fingerprint = list => list.map(s =>
-            `${s.id}|${s.name||''}|${s.shopType||''}|${s.homeDelivery}|${s.status||''}|${(s.services||[]).join(',')}|${s.deliveryTime||''}|${(s.states||[]).join(',')}|${(s.districts||[]).join(',')}|${(s.cities||[]).join(',')}|${(s.areas||[]).join(',')}|${s.address||''}|${s.lat ?? ''}|${s.lng ?? ''}|${s.serviceRadiusKm ?? ''}`
-        ).sort().join(';');
+        /* Compare whole shop documents, so any admin change (pin, radius, prices…) is picked up */
+        const fingerprint = list => JSON.stringify([...list].sort((a, b) => String(a.id).localeCompare(String(b.id))));
 
         if (fingerprint(freshList) === fingerprint(cachedRawList)) return; /* no change */
 

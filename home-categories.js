@@ -8,7 +8,7 @@
      name, category, priceOriginal, priceDiscount,
      images: [{ url, isPrimary }]
 
-   Caching: sessionStorage per category, 5-min TTL
+   Caching: Worker first; sessionStorage copy only when offline
    ═══════════════════════════════════════════════ */
 
 import { db } from './firebase-init.js';
@@ -27,7 +27,6 @@ const SECTIONS = [
     { cat: 'posters',    trackId: 'hcatPostersTrack', color: '#ec4899', accent: '#fce7f3' },
 ];
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_ITEMS = 12;
 
 /* ─────────────────────────────────────────────
@@ -59,14 +58,13 @@ function resolvePrices(item) {
 }
 
 /* ─────────────────────────────────────────────
-   CACHE HELPERS  (sessionStorage, 5-min TTL)
+   CACHE HELPERS  (sessionStorage — offline fallback only)
    ───────────────────────────────────────────── */
 function cacheGet(cat) {
     try {
         const raw = sessionStorage.getItem(`jasa_v2_hcat_${cat}`);
         if (!raw) return null;
-        const { ts, items } = JSON.parse(raw);
-        if (Date.now() - ts > CACHE_TTL) { sessionStorage.removeItem(`jasa_v2_hcat_${cat}`); return null; }
+        const { items } = JSON.parse(raw);
         return items;
     } catch { return null; }
 }
@@ -83,11 +81,7 @@ function cacheSet(cat, items) {
    Firestore is only used if Worker fails.
    ───────────────────────────────────────────── */
 async function fetchItems(cat) {
-    /* 1. sessionStorage cache (5-min TTL) */
-    const cached = cacheGet(cat);
-    if (cached) return cached;
-
-    /* 2. Cloudflare Worker — KV cache */
+    /* 1. Cloudflare Worker — KV cache (always fetched, so admin changes show at once) */
     let res;
     try {
         res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-cache' });
@@ -106,6 +100,12 @@ async function fetchItems(cat) {
         console.warn(`[home-categories] Worker returned 0 items for ${cat}`);
     } else if (res) {
         console.error(`[home-categories] Worker returned ${res.status} for ${cat}`);
+    }
+
+    /* 2. Worker unreachable — the copy saved on this device */
+    if (!res) {
+        const saved = cacheGet(cat);
+        if (saved) return saved;
     }
 
     /* 3. Firestore fallback */

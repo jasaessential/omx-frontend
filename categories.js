@@ -173,36 +173,22 @@ function activateCategoryTab(cat) {
 
 /* ════════════════════════════════
    DATA LOADING
-   1. sessionStorage cache (5 min TTL)
-   2. Cloudflare Worker KV (primary)
+   1. Cloudflare Worker KV (primary, always fetched)
+   2. copy saved on this device (only when the Worker can't be reached)
    3. Firestore categoryData/{cat} snapshot
    4. Firestore items collection query (final fallback)
    ════════════════════════════════ */
 async function loadItems(cat) {
-    /* 1. sessionStorage cache (5 min TTL — short enough that new items/images
-          appear quickly without hammering the Worker on every tab switch) */
     const CACHE_KEY = `jasa_v2_cat_${cat}`;
-    const CACHE_TTL = 300000; // 5 minutes
-    try {
-        const raw = sessionStorage.getItem(CACHE_KEY);
-        if (raw) {
-            const { data, ts } = JSON.parse(raw);
-            if (Date.now() - ts < CACHE_TTL && Array.isArray(data) && data.length) {
-                allItems = data;
-                buildFilterUI();
-                applyAndRender();
-                return;
-            }
-        }
-    } catch (_) {}
-
     showSkeletons();
 
-    /* 2. Cloudflare Worker — KV cache (primary source) */
+    /* 1. Cloudflare Worker — KV cache (primary source) */
     let workerOk = false;
+    let workerReached = false;
     try {
         const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-cache' });
         if (res.ok) {
+            workerReached = true;
             const json = await res.json();
             const data = json.items || [];
             if (data.length) {
@@ -219,6 +205,19 @@ async function loadItems(cat) {
         }
     } catch (err) {
         console.error(`[categories] Worker fetch failed:`, err.message);
+    }
+
+    /* 2. Worker unreachable — the copy saved on this device */
+    if (!workerReached) {
+        try {
+            const { data } = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}');
+            if (Array.isArray(data) && data.length) {
+                allItems = data;
+                buildFilterUI();
+                applyAndRender();
+                return;
+            }
+        } catch (_) {}
     }
 
     /* 3. Firestore categoryData/{cat} snapshot — faster single-doc read */

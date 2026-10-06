@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════
    JASA V2 — item-details.js
-   Loads a single item by ?id= from Firestore:
-     1. sessionStorage cache (1 hr TTL)
-     2. items/{id} direct doc fetch
+   Loads a single item by ?id=:
+     1. Cloudflare Worker (always fresh)
+     2. copy saved on this device (only when offline)
+     3. items/{id} direct doc fetch
    Shows image gallery, info, description,
    product detail tags, related item sliders.
    Cart stored in localStorage key "jasa_cart"
@@ -52,107 +53,84 @@ document.addEventListener('DOMContentLoaded', async () => {
 /* ════════════════════════════════
    DATA
    ════════════════════════════════ */
-async function loadItem(id) {
-    /* 1. Try sessionStorage cache (item-level, 1hr TTL) */
-    const CACHE_KEY = `jasa_v2_item_${id}`;
+const CATEGORIES = ['stationary', 'books', 'electronic', 'posters'];
+
+/* Copies saved on this device are only used when the Worker can't be reached,
+   so admin changes (prices, sizes, images) show on the next page load. */
+function readSaved(key) {
+    try { return JSON.parse(sessionStorage.getItem(key) || 'null')?.data || null; } catch (_) { return null; }
+}
+function save(key, data) {
+    try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
+}
+
+/* Items of one category from the Worker; null when the Worker is unreachable */
+async function fetchCategory(cat, timeoutMs) {
     try {
-        const raw = sessionStorage.getItem(CACHE_KEY);
-        if (raw) {
-            const { data, ts } = JSON.parse(raw);
-            if (Date.now() - ts < 3600000 && data) return data;
-        }
-    } catch (_) {}
+        const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, {
+            cache: 'no-cache', signal: AbortSignal.timeout(timeoutMs)
+        });
+        if (!res.ok) return null;
+        const json = await res.json();
+        const items = json.items || json.data || [];
+        if (items.length) save(`jasa_v2_cat_${cat}`, items);
+        return items;
+    } catch (_) { return null; }
+}
 
-    /* 2. Try finding the item inside any already-cached category
-          (sessionStorage keys: jasa_v2_cat_{cat}) — zero DB reads */
-    const CATEGORIES = ['stationary', 'books', 'electronic', 'posters'];
-    for (const cat of CATEGORIES) {
-        try {
-            const raw = sessionStorage.getItem(`jasa_v2_cat_${cat}`);
-            if (!raw) continue;
-            const { data, ts } = JSON.parse(raw);
-            if (Date.now() - ts > 3600000) continue; // stale
-            const found = Array.isArray(data) ? data.find(it => it.id === id) : null;
-            if (found) {
-                try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: found, ts: Date.now() })); } catch (_) {}
-                return found;
-            }
-        } catch (_) {}
+async function loadItem(id) {
+    const CACHE_KEY = `jasa_v2_item_${id}`;
+    const saved = readSaved(CACHE_KEY)
+        || CATEGORIES.map(c => readSaved(`jasa_v2_cat_${c}`)).flat().find(it => it?.id === id)
+        || null;
+
+    /* 1. Worker — the item's known category first */
+    const order = saved?.category ? [saved.category, ...CATEGORIES.filter(c => c !== saved.category)] : CATEGORIES;
+    let reached = false;
+    for (const cat of order) {
+        const items = await fetchCategory(cat, 3000);
+        if (!items) continue;
+        reached = true;
+        const found = items.find(it => it.id === id);
+        if (found) { save(CACHE_KEY, found); return found; }
     }
 
-    /* 3. Try Cloudflare Worker category cache — fetches all items for the
-          item's category, which also populates the category sessionStorage
-          cache for future use */
-    for (const cat of CATEGORIES) {
-        try {
-            const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, {
-                cache: 'no-cache', signal: AbortSignal.timeout(3000)
-            });
-            if (!res.ok) continue;
-            const json = await res.json();
-            const items = json.items || json.data || [];
-            if (!items.length) continue;
-            /* Cache the full category */
-            try { sessionStorage.setItem(`jasa_v2_cat_${cat}`, JSON.stringify({ data: items, ts: Date.now() })); } catch (_) {}
-            const found = items.find(it => it.id === id);
-            if (found) {
-                try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: found, ts: Date.now() })); } catch (_) {}
-                return found;
-            }
-        } catch (_) {}
-    }
+    /* 2. Worker unreachable — the copy saved on this device */
+    if (!reached && saved) return saved;
 
-    /* 4. Direct Firestore doc fetch (last resort) */
+    /* 3. Direct Firestore doc fetch */
     const snap = await getDoc(doc(db, 'items', id));
     if (!snap.exists()) return null;
     const data = { id: snap.id, ...snap.data() };
-
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
+    save(CACHE_KEY, data);
     return data;
 }
 
 async function loadCategoryItems(cat) {
     const CACHE_KEY = `jasa_v2_cat_${cat}`;
-    try {
-        const raw = sessionStorage.getItem(CACHE_KEY);
-        if (raw) {
-            const { data, ts } = JSON.parse(raw);
-            if (Date.now() - ts < 3600000 && Array.isArray(data) && data.length) return data;
-        }
-    } catch (_) {}
 
-    /* 1. Cloudflare Worker edge cache */
-    try {
-        const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, {
-            cache: 'no-cache', signal: AbortSignal.timeout(4000)
-        });
-        if (res.ok) {
-            const json = await res.json();
-            const data = json.items || json.data || [];
-            if (data.length) {
-                try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
-                return data;
-            }
-        }
-    } catch (_) {}
+    /* 1. Worker */
+    const items = await fetchCategory(cat, 4000);
+    if (items?.length) return items;
 
-    /* 2. Firestore categoryData batch doc */
+    /* 2. Worker unreachable — the copy saved on this device */
+    const saved = readSaved(CACHE_KEY);
+    if (!items && Array.isArray(saved) && saved.length) return saved;
+
+    /* 3. Firestore categoryData batch doc */
     try {
         const snap = await getDoc(doc(db, 'categoryData', cat));
         if (snap.exists()) {
             const data = snap.data().items || [];
-            if (data.length) {
-                try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
-                return data;
-            }
+            if (data.length) { save(CACHE_KEY, data); return data; }
         }
     } catch (_) {}
 
-    /* 3. Fallback: items collection query */
+    /* 4. Fallback: items collection query */
     const q    = query(collection(db, 'items'), where('category', '==', cat));
     const snap = await getDocs(q);
     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
+    save(CACHE_KEY, data);
     return data;
 }
 
