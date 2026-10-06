@@ -163,12 +163,6 @@ function render() {
     document.getElementById('skeleton').style.display = 'none';
     document.getElementById('mainContent').style.display = 'block';
 
-    const o       = item.priceOriginal || 0;
-    const d       = item.priceDiscount || 0;
-    const hasDisc = d > 0 && d < o;
-    const price   = hasDisc ? d : o;
-    const disc    = hasDisc ? Math.round(((o - d) / o) * 100) : 0;
-
     /* Header title */
     document.getElementById('headerTitle').textContent = item.name;
     document.title = `${item.name} — JASA Essential`;
@@ -181,16 +175,10 @@ function render() {
     document.getElementById('productSub').textContent  = sub;
     document.getElementById('productSub').style.display = sub ? '' : 'none';
 
-    /* Price */
-    document.getElementById('productPrice').textContent = `₹${price.toLocaleString('en-IN')}`;
-    if (hasDisc) {
-        const origEl = document.getElementById('productPriceOrig');
-        const discEl = document.getElementById('productPriceDisc');
-        origEl.textContent  = `₹${o.toLocaleString('en-IN')}`;
-        discEl.textContent  = `${disc}% OFF`;
-        origEl.style.display = '';
-        discEl.style.display = '';
-    }
+    /* Per-size pricing (wall posters): default to the first priced size */
+    const sizes = Object.keys(item.sizePrices || {});
+    selectedSize = sizes.length ? ((item.types || []).find(t => item.sizePrices[t]) || sizes[0]) : '';
+    updatePrice();
 
     /* Gallery */
     buildGallery(item.images || []);
@@ -212,11 +200,45 @@ function render() {
     buildTags();
 
     /* Cart buttons */
-    const cartData = { id: item.id, name: item.name, price, originalPrice: o,
-                       discountPercent: disc, img: getPrimaryImg(), category: item.category };
-    document.getElementById('btnAddCart').onclick  = () => addToCart(cartData);
-    document.getElementById('btnBuyNow').onclick   = () => addAndGo(cartData);
+    document.getElementById('btnAddCart').onclick  = () => addToCart(currentCartData());
+    document.getElementById('btnBuyNow').onclick   = () => addAndGo(currentCartData());
 }
+
+/* ── Price for the selected size (or the item's own price) ── */
+let selectedSize = '';
+function currentPricing() {
+    const sp = selectedSize && item.sizePrices?.[selectedSize];
+    const o  = (sp ? sp.priceOriginal : item.priceOriginal) || 0;
+    const d  = (sp ? sp.priceDiscount : item.priceDiscount) || 0;
+    const hasDisc = d > 0 && d < o;
+    return { o, price: hasDisc ? d : o, hasDisc,
+             disc: hasDisc ? Math.round(((o - d) / o) * 100) : 0 };
+}
+
+function updatePrice() {
+    const { o, price, hasDisc, disc } = currentPricing();
+    document.getElementById('productPrice').textContent = `₹${price.toLocaleString('en-IN')}`;
+    const origEl = document.getElementById('productPriceOrig');
+    const discEl = document.getElementById('productPriceDisc');
+    origEl.textContent  = `₹${o.toLocaleString('en-IN')}`;
+    discEl.textContent  = `${disc}% OFF`;
+    origEl.style.display = discEl.style.display = hasDisc ? '' : 'none';
+}
+
+function currentCartData() {
+    const { o, price, disc } = currentPricing();
+    return { id: selectedSize ? `${item.id}__${selectedSize}` : item.id,
+             baseId: item.id, size: selectedSize || undefined,
+             name: selectedSize ? `${item.name} (${selectedSize})` : item.name,
+             price, originalPrice: o, discountPercent: disc,
+             img: getPrimaryImg(), category: item.category };
+}
+
+window.selectSize = function (size) {
+    selectedSize = size;
+    updatePrice();
+    buildTags();
+};
 
 /* ── Gallery ── */
 function buildGallery(images) {
@@ -321,7 +343,8 @@ function buildTags() {
     (item.brands    || []).forEach(v => tags.push({ icon: 'fa-solid fa-award',        text: v }));
     (item.authors   || []).forEach(v => tags.push({ icon: 'fa-solid fa-pen-nib',      text: v }));
     (item.categories|| []).forEach(v => tags.push({ icon: 'fa-solid fa-bookmark',     text: v }));
-    (item.types     || []).forEach(v => tags.push({ icon: 'fa-solid fa-layer-group',  text: v }));
+    (item.types     || []).forEach(v => tags.push({ icon: 'fa-solid fa-layer-group',  text: v,
+        size: item.sizePrices?.[v] ? v : '' }));
     if (item.type)         tags.push({ icon: 'fa-solid fa-layer-group', text: item.type });
 
     if (!tags.length) return;
@@ -329,8 +352,9 @@ function buildTags() {
     const section = document.getElementById('detailsSection');
     const wrap    = document.getElementById('productTags');
     section.style.display = '';
-    wrap.innerHTML = tags.map(t =>
-        `<span class="id-tag"><i class="${t.icon}"></i>${t.text}</span>`
+    wrap.innerHTML = tags.map(t => t.size
+        ? `<button type="button" class="id-tag id-tag-size${t.size === selectedSize ? ' active' : ''}" onclick="selectSize('${esc(t.size)}')"><i class="${t.icon}"></i>${t.text}</button>`
+        : `<span class="id-tag"><i class="${t.icon}"></i>${t.text}</span>`
     ).join('');
 }
 

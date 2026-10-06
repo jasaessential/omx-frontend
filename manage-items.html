@@ -177,8 +177,14 @@
                     </div>
                 </div>
 
+                <!-- Per-size pricing (wall posters) -->
+                <div class="mi-field" id="fSizePricesWrap" style="display:none;">
+                    <label class="mi-label">Price per Size (₹)</label>
+                    <div id="fSizePrices"></div>
+                </div>
+
                 <!-- Pricing -->
-                <div class="mi-field-row">
+                <div class="mi-field-row" id="fBasePriceRow">
                     <div class="mi-field">
                         <label class="mi-label">Original Price (₹) <span class="mi-req">*</span></label>
                         <input type="number" step="0.01" min="0" class="mi-input" id="fPriceOrg" placeholder="0.00" required>
@@ -236,6 +242,6 @@
 <!-- ════ SCRIPTS ════ -->
 <script src="app.js"></script>
 <script type="module" src="auth-header.js"></script>
-<script type="module" src="manage-items.js?v=20260925b"></script>
+<script type="module" src="manage-items.js?v=20261006a"></script>
 </body>
 </html>

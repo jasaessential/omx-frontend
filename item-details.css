@@ -279,6 +279,9 @@ body {
     color: var(--txt2);
 }
 .id-tag i { font-size: .7rem; color: var(--primary); }
+.id-tag-size { cursor: pointer; font-family: inherit; }
+.id-tag-size.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.id-tag-size.active i { color: #fff; }
 
 /* ════════════════════════════════
    RELATED SECTION

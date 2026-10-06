@@ -341,7 +341,9 @@ window.openCreateModal = async function(cat) {
     document.getElementById('fTypesBox').innerHTML  = '<span class="mi-chips-empty">Loading…</span>';
 
     openModal();
+    sizePriceDraft = {};
     await loadAttrChips(cat);
+    renderSizePrices();
 };
 
 async function loadAttrChips(cat) {
@@ -423,9 +425,42 @@ window.editItem = async function(id) {
                 const cb = document.querySelector(`input[name="item-type"][value="${CSS.escape(v)}"]`);
                 if (cb) cb.checked = true;
             });
+            sizePriceDraft = { ...(item.sizePrices || {}) };
+            renderSizePrices();
         }, 500);
     } catch (err) { toast('Error loading item: ' + err.message, 'error'); }
 };
+
+/* ── Per-size prices (wall posters): one price row per ticked Size ── */
+let sizePriceDraft = {};
+function readSizePriceInputs() {
+    document.querySelectorAll('#fSizePrices [data-size]').forEach(row => {
+        sizePriceDraft[row.dataset.size] = {
+            priceOriginal: row.querySelector('.sp-org').value,
+            priceDiscount: row.querySelector('.sp-disc').value,
+        };
+    });
+}
+function renderSizePrices() {
+    const cat  = document.getElementById('fCategory').value;
+    const wrap = document.getElementById('fSizePricesWrap');
+    const on   = cat === 'posters';
+    wrap.style.display = on ? '' : 'none';
+    document.getElementById('fPriceOrg').required = !on;
+    document.getElementById('fBasePriceRow').style.display = on ? 'none' : '';
+    if (!on) return;
+    readSizePriceInputs();
+    const sizes = Array.from(document.querySelectorAll('input[name="item-type"]:checked')).map(c => c.value);
+    document.getElementById('fSizePrices').innerHTML = sizes.length ? sizes.map(sz => {
+        const v = sizePriceDraft[sz] || {};
+        return `<div class="mi-field-row" data-size="${sz.replace(/"/g,'&quot;')}" style="align-items:center;margin-bottom:6px;">
+            <div style="font-weight:800;min-width:60px;">${sz.replace(/</g,'&lt;')}</div>
+            <input type="number" step="0.01" min="0" class="mi-input sp-org"  placeholder="Original ₹" value="${v.priceOriginal ?? ''}">
+            <input type="number" step="0.01" min="0" class="mi-input sp-disc" placeholder="Discount ₹" value="${v.priceDiscount ?? ''}">
+        </div>`;
+    }).join('') : '<span class="mi-chips-empty">Tick one or more sizes above to set their prices.</span>';
+}
+document.addEventListener('change', e => { if (e.target.name === 'item-type') renderSizePrices(); });
 
 function openModal() {
     document.getElementById('createModalOverlay').classList.add('open');
@@ -571,6 +606,24 @@ window.submitItem = async function() {
     const brands = Array.from(document.querySelectorAll('input[name="item-brand"]:checked')).map(c => c.value);
     const types  = Array.from(document.querySelectorAll('input[name="item-type"]:checked')).map(c => c.value);
 
+    // Wall posters: one price per ticked size; the base price is the cheapest size
+    let sizePrices = null, basePrices = { o: priceOrg, d: priceDisc };
+    if (cat === 'posters') {
+        sizePrices = {};
+        let lowest = null;
+        for (const row of document.querySelectorAll('#fSizePrices [data-size]')) {
+            const o = parseFloat(row.querySelector('.sp-org').value || 0);
+            const d = parseFloat(row.querySelector('.sp-disc').value || 0);
+            if (!(o > 0)) { toast(`Enter a price for size ${row.dataset.size}.`, 'error'); return; }
+            if (d && d >= o) { toast(`Discount for ${row.dataset.size} must be below its original price.`, 'error'); return; }
+            sizePrices[row.dataset.size] = { priceOriginal: o, priceDiscount: d || 0 };
+            const eff = d > 0 ? d : o;
+            if (!lowest || eff < lowest.eff) lowest = { eff, o, d: d || 0 };
+        }
+        if (!lowest) { toast('Select at least one size and set its price.', 'error'); return; }
+        basePrices = { o: lowest.o, d: lowest.d };
+    }
+
     // Collect existing retained images
     const existingImages = Array.from(document.querySelectorAll('[data-existing-img]')).map(div => {
         const img   = JSON.parse(div.dataset.existingImg);
@@ -636,8 +689,9 @@ window.submitItem = async function() {
             [cfg.brandField]: brands,
             [cfg.typeField]:  types,
             type: firstType,
-            priceOriginal: priceOrg,
-            priceDiscount: priceDisc,
+            priceOriginal: basePrices.o,
+            priceDiscount: basePrices.d,
+            ...(sizePrices ? { sizePrices } : {}),
             description:   desc,
             images:        finalImages,
             sortKey, searchTags,
