@@ -4,7 +4,8 @@
    Auth: admin role required
    ═══════════════════════════════════════════════ */
 import { auth, db } from './firebase-init.js';
-import { SERVER_URL, SUPABASE_CONFIG, CLOUDINARY_CONFIG, WORKER_URL, initAppConfig, getAdminToken } from './env-config.js';
+import { SERVER_URL, CLOUDINARY_CONFIG, WORKER_URL, initAppConfig, getAdminToken } from './env-config.js';
+import { listFiles, deleteFiles } from './secure-files.js';   // private bucket, admin-only server routes
 import {
     collection, getDocs, doc, getDoc, deleteDoc,
     getCountFromServer, writeBatch, setDoc
@@ -24,7 +25,6 @@ const CL_FREE_BYTES = 25 * 1024 * 1024 * 1024; // 25 GB
 // Storage (Supabase)
 let stFiles    = [];
 let stSelected = new Set();
-const ST_BUCKET    = 'files';
 const MAX_ST_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
 
 /* ════ HELPERS ════ */
@@ -552,9 +552,7 @@ async function loadStorage() {
     setStList(`<div class="acl-loading"><i class="fa-solid fa-spinner fa-spin"></i> Loading files…</div>`);
 
     try {
-        // Ensure config is loaded before accessing SUPABASE_CONFIG
-        await initAppConfig();
-        stFiles = await listFilesRecursive('');
+        stFiles = (await listFiles('')).files;
         stFiles.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
         renderStStats();
         renderStList();
@@ -562,33 +560,6 @@ async function loadStorage() {
         console.error('[Cloud/Storage]', e);
         setStList(`<div class="acl-empty">Failed to load storage files.</div>`);
     }
-}
-
-async function listFilesRecursive(prefix) {
-    const res = await fetch(`${SUPABASE_CONFIG.url}/storage/v1/object/list/${ST_BUCKET}`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
-            'apikey':        SUPABASE_CONFIG.anonKey,
-            'Content-Type':  'application/json'
-        },
-        body: JSON.stringify({ prefix, limit: 1000, offset: 0, sortBy: { column: 'name', order: 'asc' } })
-    });
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('Unexpected storage response');
-
-    let files = [];
-    for (const item of data) {
-        if (item.name === '.emptyFolderPlaceholder') continue;
-        if (!item.id && item.name) {
-            // Folder — recurse
-            const sub = await listFilesRecursive(prefix + item.name + '/');
-            files = files.concat(sub);
-        } else if (item.id) {
-            files.push({ ...item, fullPath: prefix + item.name });
-        }
-    }
-    return files;
 }
 
 function renderStStats() {
@@ -622,7 +593,6 @@ function renderStList() {
                       : isImg ? 'acl-st-file-icon--img fa-file-image'
                       : 'acl-st-file-icon--def fa-file';
         const pathJs = file.fullPath.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const pubUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${ST_BUCKET}/${encodeURIComponent(file.fullPath)}`;
 
         return `
 <div class="acl-st-file ${isSel ? 'selected' : ''}">
@@ -635,7 +605,7 @@ function renderStList() {
         <div class="acl-st-file-name" title="${esc(file.fullPath)}">${esc(file.name)}</div>
         <div class="acl-st-file-meta">${size} · ${date}</div>
     </div>
-    <a href="${esc(pubUrl)}" target="_blank" class="acl-st-open-btn" title="Open file">
+    <a href="#" data-secure-file data-path="${esc(file.fullPath)}" target="_blank" class="acl-st-open-btn" title="Open file">
         <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.7rem;"></i>
     </a>
 </div>`;
@@ -688,22 +658,7 @@ window.deleteSelectedSt = async function() {
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
 
     try {
-        const res = await fetch(
-            `${SUPABASE_CONFIG.url}/storage/v1/object/${ST_BUCKET}`,
-            {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
-                    'apikey':        SUPABASE_CONFIG.anonKey,
-                    'Content-Type':  'application/json'
-                },
-                body: JSON.stringify({ prefixes: Array.from(stSelected) })
-            }
-        );
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.message || `HTTP ${res.status}`);
-        }
+        await deleteFiles(Array.from(stSelected));
         stFiles    = stFiles.filter(f => !stSelected.has(f.fullPath));
         stSelected.clear();
         renderStStats();

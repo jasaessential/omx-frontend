@@ -292,35 +292,35 @@ function saveCart(cart) {
 function esc(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
 /* ════ SHOPS ════ */
+/* Always fresh, so a shop the admin just added (e.g. a Posters shop) shows at once.
+   The copy saved on the device is used only when nothing else can be reached. */
 async function fetchShops() {
-    /* 1. localStorage cache (24h TTL) */
     const CACHE_KEY = 'global_shops_data_v1';
+    const keep = shops => {
+        allShops = shops;
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: shops, timestamp: Date.now() })); } catch (_) {}
+    };
+    /* 1. Worker edge cache (busted whenever a shop is saved) */
     try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            const { data, timestamp, ttl } = JSON.parse(cached);
-            if (Date.now() - timestamp < (ttl || 86400000) && data?.length) {
-                allShops = data; return;
-            }
-        }
-    } catch (_) {}
-    /* 2. Worker edge cache */
-    try {
-        const res = await fetch(`${WORKER_URL}/api/shops/all`, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(`${WORKER_URL}/api/shops/all`, { signal: AbortSignal.timeout(4000), cache: 'no-store' });
         if (res.ok) {
             const json  = await res.json();
             const shops = json.shops || json.data || [];
-            if (shops.length) {
-                localStorage.setItem(CACHE_KEY, JSON.stringify({ data: shops, timestamp: Date.now(), ttl: 86400000 }));
-                allShops = shops; return;
-            }
+            if (shops.length) return keep(shops);
         }
     } catch (_) {}
-    /* 3. Firestore fallback */
+    /* 2. Firestore */
     try {
         const snap = await getDocs(collection(db,'shops'));
-        allShops = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        const shops = snap.docs.map(d => ({ id:d.id, ...d.data() }))
+            .filter(s => s.status === undefined || String(s.status).toLowerCase() === 'active');
+        if (shops.length) return keep(shops);
     } catch(e) { console.warn('Shops fetch failed:',e); }
+    /* 3. Offline: last copy saved on this device */
+    try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (cached?.data?.length) allShops = cached.data;
+    } catch (_) {}
 }
 
 function getDeliveryFee(cat, subtotal) {

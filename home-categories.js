@@ -233,7 +233,10 @@ function buildCard(item, color, accent, cat) {
                 <span class="hcat-card-price">₹${displayPrice.toFixed(0)}</span>
                 ${hasDiscount ? `<span class="hcat-card-mrp">₹${orig.toFixed(0)}</span>` : ''}
             </div>
-            <button
+            ${item.customUpload || Object.keys(item.sizePrices || {}).length
+                /* Sized or custom-photo posters need a choice first: the card opens the product page */
+                ? `<span class="hcat-add-btn"><i class="fa-solid fa-${item.customUpload ? 'cloud-arrow-up' : 'layer-group'}"></i> ${item.customUpload ? 'Upload' : 'Choose'}</span>`
+                : `<button
                 class="hcat-add-btn${inCart ? ' hcat-btn-added' : ''}"
                 data-hcat-id="${safeId}"
                 ${inCart ? 'disabled' : ''}
@@ -243,7 +246,7 @@ function buildCard(item, color, accent, cat) {
                 ${inCart
                     ? '<i class="fa-solid fa-check"></i> Added'
                     : '<i class="fa-solid fa-cart-plus"></i> Add'}
-            </button>
+            </button>`}
         </div>
     </a>`;
 }

@@ -426,6 +426,7 @@ window.editItem = async function(id) {
                 if (cb) cb.checked = true;
             });
             sizePriceDraft = { ...(item.sizePrices || {}) };
+            document.getElementById('fCustomUpload').checked = item.customUpload === true;
             renderSizePrices();
         }, 500);
     } catch (err) { toast('Error loading item: ' + err.message, 'error'); }
@@ -448,6 +449,7 @@ function renderSizePrices() {
     wrap.style.display = on ? '' : 'none';
     document.getElementById('fPriceOrg').required = !on;
     document.getElementById('fBasePriceRow').style.display = on ? 'none' : '';
+    document.getElementById('fCustomUploadWrap').style.display = on ? '' : 'none';
     if (!on) return;
     readSizePriceInputs();
     const sizes = Array.from(document.querySelectorAll('input[name="item-type"]:checked')).map(c => c.value);
@@ -692,6 +694,7 @@ window.submitItem = async function() {
             priceOriginal: basePrices.o,
             priceDiscount: basePrices.d,
             ...(sizePrices ? { sizePrices } : {}),
+            customUpload:  cat === 'posters' && document.getElementById('fCustomUpload').checked,
             description:   desc,
             images:        finalImages,
             sortKey, searchTags,

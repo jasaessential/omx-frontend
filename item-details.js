@@ -17,6 +17,7 @@ import {
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { WORKER_URL } from './env-config.js';
+import { getUploadTarget } from './secure-files.js';
 
 /* ── Track auth state ── */
 let currentUser = null;
@@ -177,6 +178,10 @@ function render() {
     /* Tags / product details */
     buildTags();
 
+    /* Custom poster: the customer uploads the photo to print */
+    document.getElementById('customPhotoSection').style.display = item.customUpload ? '' : 'none';
+    if (item.customUpload) document.getElementById('customPhotoInput').onchange = e => uploadCustomPhoto(e.target.files[0]);
+
     /* Cart buttons */
     document.getElementById('btnAddCart').onclick  = () => addToCart(currentCartData());
     document.getElementById('btnBuyNow').onclick   = () => addAndGo(currentCartData());
@@ -205,11 +210,51 @@ function updatePrice() {
 
 function currentCartData() {
     const { o, price, disc } = currentPricing();
-    return { id: selectedSize ? `${item.id}__${selectedSize}` : item.id,
+    const line = { id: selectedSize ? `${item.id}__${selectedSize}` : item.id,
              baseId: item.id, size: selectedSize || undefined,
              name: selectedSize ? `${item.name} (${selectedSize})` : item.name,
              price, originalPrice: o, discountPercent: disc,
              img: getPrimaryImg(), category: item.category };
+    if (!item.customUpload) return line;
+
+    /* Custom poster: each uploaded photo is its own cart line */
+    if (customPhoto.uploading) { showToast('Your photo is still uploading…', 'error'); return null; }
+    if (!customPhoto.url)      { showToast('Please upload your photo first.', 'error'); return null; }
+    return { ...line,
+             id: selectedSize ? `${line.id}__${customPhoto.tag}` : line.id,
+             customPhoto: customPhoto.url,   // private file — thumbnails keep the catalog image
+             customNote: document.getElementById('customNote').value.trim().slice(0, 300) };
+}
+
+/* ── Custom poster photo upload (same Supabase bucket as xerox files) ── */
+const customPhoto = { url: '', tag: '', uploading: false };
+async function uploadCustomPhoto(file) {
+    const status  = document.getElementById('customPhotoStatus');
+    const preview = document.getElementById('customPhotoPreview');
+    const hint    = document.getElementById('customPhotoHint');
+    const say = (msg, cls = '') => { status.textContent = msg; status.className = `id-upload-status ${cls}`; };
+    if (!file) return;
+    if (!currentUser) { showToast('Please sign in to upload your photo.', 'error'); return; }
+    if (!/^image\//.test(file.type)) { say('Please choose an image file (JPG, PNG…).', 'err'); return; }
+    if (file.size > 25 * 1024 * 1024) { say('This photo is over 25 MB. Please choose a smaller one.', 'err'); return; }
+
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = '';
+    hint.style.display = 'none';
+    Object.assign(customPhoto, { url: '', tag: '', uploading: true });
+    say('Uploading your photo…');
+    try {
+        const tag    = Date.now().toString(36);
+        const target = await getUploadTarget('poster', `${tag}_${file.name}`);
+        const res    = await fetch(target.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        Object.assign(customPhoto, { url: target.fileUrl, tag, uploading: false });
+        say('Photo uploaded. Tap the box to change it.', 'ok');
+    } catch (e) {
+        customPhoto.uploading = false;
+        say(`Upload failed (${e.message}). Tap the box to try again.`, 'err');
+    }
+    document.getElementById('customPhotoInput').value = '';
 }
 
 window.selectSize = function (size) {
@@ -427,6 +472,10 @@ function buildRelCard(p) {
         : `<i class="fa-solid fa-box id-rel-no-img"></i>`;
     const cat = p.category || item.category;
 
+    /* Sized or custom-photo posters need a choice first: open their page */
+    const pick = p.customUpload || Object.keys(p.sizePrices || {}).length
+        ? `location.href='item-details.html?id=${p.id}'` : '';
+    const line = `{id:'${p.id}',name:'${esc(p.name)}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${esc(img)}',category:'${cat}'}`;
     return `
     <a href="item-details.html?id=${p.id}" class="id-rel-card">
         <div class="id-rel-img">${imgHtml}</div>
@@ -440,11 +489,11 @@ function buildRelCard(p) {
         </div>
         <div class="id-rel-actions">
             <button class="id-rel-buy"
-                onclick="event.preventDefault();event.stopPropagation();addAndGo({id:'${p.id}',name:'${esc(p.name)}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${esc(img)}',category:'${cat}'})">
+                onclick="event.preventDefault();event.stopPropagation();${pick || `addAndGo(${line})`}">
                 <i class="fa-solid fa-bag-shopping"></i> Buy
             </button>
             <button class="id-rel-cart"
-                onclick="event.preventDefault();event.stopPropagation();addToCart({id:'${p.id}',name:'${esc(p.name)}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${esc(img)}',category:'${cat}'})">
+                onclick="event.preventDefault();event.stopPropagation();${pick || `addToCart(${line})`}">
                 <i class="fa-solid fa-cart-shopping"></i>
             </button>
         </div>
@@ -490,6 +539,7 @@ function updateCartBadge(cart) {
 }
 
 window.addToCart = function (cartItem) {
+    if (!cartItem) return;
     if (!currentUser) {
         showToast('Please sign in to add items to cart.', 'error');
         setTimeout(() => window.location.href = 'login.html', 1200);
@@ -504,6 +554,7 @@ window.addToCart = function (cartItem) {
 };
 
 window.addAndGo = function (cartItem) {
+    if (!cartItem) return;
     if (!currentUser) {
         showToast('Please sign in to continue.', 'error');
         setTimeout(() => window.location.href = 'login.html', 1200);

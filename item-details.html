@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="item-details.css">
+    <link rel="stylesheet" href="item-details.css?v=20261008a">
     <meta name="theme-color" content="#2D8CF0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -62,6 +62,22 @@
             </div>
         </div>
 
+        <!-- ── CUSTOM POSTER: the customer's own photo ── -->
+        <div class="id-section" id="customPhotoSection" style="display:none;">
+            <div class="id-section-title">Your Photo</div>
+            <label class="id-upload" for="customPhotoInput">
+                <img id="customPhotoPreview" alt="Your photo" style="display:none;">
+                <span class="id-upload-hint" id="customPhotoHint">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    Tap to choose the photo to print
+                </span>
+            </label>
+            <input type="file" id="customPhotoInput" accept="image/*" hidden>
+            <div class="id-upload-status" id="customPhotoStatus"></div>
+            <textarea class="id-note" id="customNote" maxlength="300" rows="2"
+                      placeholder="Note for the shop (optional): crop, orientation, text to add…"></textarea>
+        </div>
+
         <!-- ── ACTION BUTTONS ── -->
         <div class="id-section id-actions">
             <button class="id-btn-cart"   id="btnAddCart">
@@ -109,6 +125,6 @@
     <div class="id-toast" id="idToast"></div>
 
     <script src="app.js"></script>
-    <script type="module" src="item-details.js?v=20261006a"></script>
+    <script type="module" src="item-details.js?v=20261008a"></script>
 </body>
 </html>

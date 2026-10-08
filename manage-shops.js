@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════ */
 import { auth, db } from "./firebase-init.js";
 import { WORKER_URL, getAdminToken } from "./env-config.js";
-import { createMapPicker, hasCoords } from "./geo-map.js";
+import { createMapPicker, hasCoords, searchPlaces } from "./geo-map.js";
 import {
   collection,
   getDocs,
@@ -156,7 +156,52 @@ window.clearShopPin = function () {
 
 document.addEventListener("input", (e) => {
   if (e.target?.id === "shopRadiusKm") shopMap?.setRadius(Number(e.target.value) || 0);
+  if (e.target?.id === "shopLocationLink") {
+    clearTimeout(linkTimer);
+    linkTimer = setTimeout(() => pinFromLink(e.target.value.trim()), 700);
+  }
 });
+
+/* A pasted map link moves the pin. Links with coordinates are read here; short
+   share links (maps.app.goo.gl/…) are opened by the Worker; a link that only
+   names a place is searched for. */
+let linkTimer = null;
+let linkSeq = 0;
+async function pinFromLink(link) {
+  if (!/^https?:\/\//i.test(link)) return;
+  const seq = ++linkSeq;
+  const setPin = (p, note) => {
+    if (seq !== linkSeq) return;
+    shopPin = { lat: p.lat, lng: p.lng };
+    shopMap?.setValue(shopPin);
+    updatePinText();
+    if (note) document.getElementById("shopPinText").textContent += ` — ${note}`;
+  };
+  const local = parseLatLngFromLink(link);
+  if (local) return setPin(local);
+
+  const pinText = document.getElementById("shopPinText");
+  if (pinText) pinText.textContent = "Reading the map link…";
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    const adminKey = idToken ? await getAdminToken(idToken) : null;
+    const res = await fetch(`${WORKER_URL}/api/geo/resolve-map-link?url=${encodeURIComponent(link)}`, {
+      headers: adminKey ? { Authorization: `Bearer ${adminKey}` } : {},
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    if (Number.isFinite(j.lat) && Number.isFinite(j.lng)) return setPin(j);
+    if (j.query) {
+      const [hit] = await searchPlaces(j.query);
+      if (hit) return setPin(hit, "found by place name, check it is right");
+    }
+    throw new Error("No location in this link");
+  } catch (err) {
+    if (seq !== linkSeq) return;
+    updatePinText();
+    if (pinText) pinText.textContent += ` (${err.message}. Drop the pin on the map instead.)`;
+  }
+}
 
 /* ─────────── Modal Management ─────────── */
 // Registered on window immediately so inline onclick handlers always resolve,
@@ -1228,7 +1273,8 @@ window.editShop = function (id) {
   document.getElementById("shopNotes").value = data.notes || "";
   document.getElementById("shopRadiusKm").value = data.serviceRadiusKm || 10;
   /* Saved pin, else try to read one from the pasted map link */
-  initShopMap(hasCoords(data) ? { lat: Number(data.lat), lng: Number(data.lng) } : parseLatLngFromLink(data.locationLink));
+  const savedPin = hasCoords(data) ? { lat: Number(data.lat), lng: Number(data.lng) } : parseLatLngFromLink(data.locationLink);
+  initShopMap(savedPin).then(() => { if (!savedPin && data.locationLink) pinFromLink(data.locationLink); });
 
   // Shop type radio
   const typeVal = data.shopType === "college" ? "college" : "shop";

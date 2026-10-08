@@ -622,6 +622,10 @@ function buildCard(item, catCfg) {
     const safeName = esc(item.name);
     const safeImg  = primaryImg ? esc(primaryImg) : '';
     const cat      = activeCategory;
+    /* Sized or custom-photo posters need a choice first: open the product page */
+    const pick     = item.customUpload || Object.keys(item.sizePrices || {}).length
+        ? `location.href='item-details.html?id=${item.id}'` : '';
+    const line     = `{id:'${item.id}',name:'${safeName}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${safeImg}',category:'${cat}'}`;
 
     return `
     <div class="prod-card">
@@ -637,11 +641,11 @@ function buildCard(item, catCfg) {
                 </div>
                 <div class="prod-card-actions">
                     <button class="prod-buy-btn"
-                        onclick="event.preventDefault();event.stopPropagation();addToCartAndGo({id:'${item.id}',name:'${safeName}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${safeImg}',category:'${cat}'})">
+                        onclick="event.preventDefault();event.stopPropagation();${pick || `addToCartAndGo(${line})`}">
                         <i class="fa-solid fa-bag-shopping"></i> Buy Now
                     </button>
                     <button class="prod-cart-btn" id="cart-btn-${item.id}"
-                        onclick="event.preventDefault();event.stopPropagation();addToCart({id:'${item.id}',name:'${safeName}',price:${price},originalPrice:${o},discountPercent:${disc},img:'${safeImg}',category:'${cat}'})">
+                        onclick="event.preventDefault();event.stopPropagation();${pick || `addToCart(${line})`}">
                         <i class="fa-solid fa-cart-shopping"></i>
                     </button>
                 </div>

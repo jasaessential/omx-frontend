@@ -283,6 +283,26 @@ body {
 .id-tag-size.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 .id-tag-size.active i { color: #fff; }
 
+/* ── Custom poster: customer's photo ── */
+.id-upload {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 120px; padding: 10px;
+    border: 2px dashed var(--border2); border-radius: var(--r-sm);
+    background: var(--bg); cursor: pointer; overflow: hidden;
+}
+.id-upload img { max-width: 100%; max-height: 260px; border-radius: var(--r-xs); display: block; }
+.id-upload-hint { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: .8rem; font-weight: 700; color: var(--txt3); text-align: center; }
+.id-upload-hint i { font-size: 1.5rem; color: var(--primary); }
+.id-upload-status { font-size: .74rem; font-weight: 700; color: var(--txt3); margin: 8px 0; min-height: 1em; }
+.id-upload-status.ok  { color: #16a34a; }
+.id-upload-status.err { color: #ef4444; }
+.id-note {
+    width: 100%; box-sizing: border-box; resize: vertical;
+    border: 1.5px solid var(--border); border-radius: var(--r-xs);
+    background: var(--bg-white); color: var(--txt1);
+    padding: 8px 10px; font: inherit; font-size: .8rem;
+}
+
 /* ════════════════════════════════
    RELATED SECTION
    ════════════════════════════════ */

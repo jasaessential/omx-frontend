@@ -29,11 +29,13 @@ bucket_name = "jasa-product-images"
 R2_PUBLIC_URL = "https://pub-35a590f6b24c49aba1b36086b8a5cc65.r2.dev"
 PAYMENT_SERVER_URL = "https://server-bc02.onrender.com"   # Render payment server (cron target)
 FIREBASE_PROJECT_ID = "jasa-essential-234f8"              # admin ID-token check (verifyAdmin)
+# Extra browser origins allowed by CORS (comma list); the site's own domains are built in.
+# ALLOWED_ORIGINS = "https://staging.example.com"
 
 # ── Secrets (set via CLI — never commit these) ─────────────────
-# Run once before deploying:
+# Run once before deploying (there is no shared admin key — admin calls carry
+# the user's Firebase ID token):
 #
-#   npx wrangler secret put ADMIN_SECRET_KEY
 #   npx wrangler secret put FIREBASE_PROJECT_ID
 #   npx wrangler secret put FIREBASE_API_KEY
 #   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT

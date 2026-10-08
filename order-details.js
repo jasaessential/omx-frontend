@@ -7,7 +7,8 @@
    Late upload of xerox files via Supabase XHR.
    ═══════════════════════════════════════════════ */
 import { auth, db } from './firebase-init.js';
-import { SUPABASE_CONFIG, WORKER_URL, PAYMENT_SERVER_URL, getSupabaseConfig } from './env-config.js';
+import { WORKER_URL, PAYMENT_SERVER_URL } from './env-config.js';
+import { getUploadTarget } from './secure-files.js';   // signed upload / view links
 
 /* Customer changes to a placed order go through the server, which recomputes
    the totals (POST /api/orders/cancel-item and /attach-file). */
@@ -436,7 +437,7 @@ function buildXeroxDocCard(d, idx, order, cancelBtn) {
 
     const viewFileBtn = (isUploaded && d.uploadedUrl && !['pending_whatsapp','pending_later'].includes(d.uploadedUrl)) ? `
     <div style="margin-top:8px;">
-        <a href="${d.uploadedUrl}" target="_blank" class="od-view-file-btn">
+        <a href="${String(d.uploadedUrl).replace(/"/g,'&quot;')}" data-secure-file data-order-id="${String(orderId).replace(/[^A-Za-z0-9_-]/g,'')}" target="_blank" class="od-view-file-btn">
             <i class="fa-solid fa-eye"></i> View Uploaded File
         </a>
     </div>` : '';
@@ -670,22 +671,16 @@ async function startLateXHR(oId, dIdx) {
     if (!t || t.intent === 'cancelled') return;
     t.status = 'uploading'; t.intent = 'active';
 
-    /* Ensure env config is loaded before reading Supabase creds */
-    let sbUrl, sbKey;
+    /* Signed, single-use upload link from the server (private bucket) */
+    let target;
     try {
-        const sb = await getSupabaseConfig();
-        sbUrl = sb?.url;
-        sbKey = sb?.anonKey;
-    } catch (_) {}
-    if (!sbUrl || !sbKey) {
+        target = await getUploadTarget('order', t.file.name, oId);
+    } catch (e) {
         t.status = 'error'; renderLateProgress(oId, dIdx);
-        odToast('Upload service unavailable. Please try again.', 'error');
+        odToast(`Upload unavailable: ${e.message}`, 'error');
         return;
     }
 
-    const cleanName = t.file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const path      = `xerox-orders/${oId}/${Date.now()}_${cleanName}`;
-    const url       = `${sbUrl}/storage/v1/object/files/${path}`;
     const xhr       = new XMLHttpRequest();
     t.xhr = xhr;
 
@@ -708,8 +703,7 @@ async function startLateXHR(oId, dIdx) {
     xhr.addEventListener('load', async () => {
         if (t.intent !== 'active') return;
         if (xhr.status >= 200 && xhr.status < 300) {
-            const finalUrl = `${sbUrl}/storage/v1/object/public/files/${path}`;
-            await syncLateUpload(oId, dIdx, finalUrl, 'uploaded');
+            await syncLateUpload(oId, dIdx, target.fileUrl, 'uploaded');
         } else {
             t.status = 'error'; renderLateProgress(oId, dIdx);
             odToast('Upload failed. Try WhatsApp instead.', 'error');
@@ -722,9 +716,7 @@ async function startLateXHR(oId, dIdx) {
     });
     xhr.addEventListener('abort', () => { renderLateProgress(oId, dIdx); });
 
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Authorization', `Bearer ${sbKey}`);
-    xhr.setRequestHeader('apikey', sbKey);
+    xhr.open('PUT', target.uploadUrl, true);
     if (t.file.type) xhr.setRequestHeader('Content-Type', t.file.type);
     xhr.send(t.file);
 }

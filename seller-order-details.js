@@ -13,6 +13,7 @@ import {
 import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { WORKER_URL } from './env-config.js';
+import './secure-files.js';   // opens customer files via signed links
 import { moveBookCharge } from './xerox-book.js';
 
 /* ── URL params ── */
@@ -505,7 +506,7 @@ function buildDocCard(d, idx) {
     ].filter(Boolean).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
 
     const fileBtn = (d.uploadedUrl && d.uploadedUrl.startsWith('http'))
-        ? `<a href="${esc(d.uploadedUrl)}" target="_blank" class="sod-file-btn"><i class="fa-solid fa-eye"></i> View / Download File</a>` : '';
+        ? `<a href="${esc(d.uploadedUrl)}" data-secure-file data-order-id="${esc(orderId)}" target="_blank" class="sod-file-btn"><i class="fa-solid fa-eye"></i> View / Download File</a>` : '';
 
     return `
 <div class="sod-item-card" id="sodItem-${idx}">
@@ -552,6 +553,13 @@ function buildProductCard(item, idx) {
         </div>
         ${statusBadge(item.status || 'pending')}
     </div>
+    ${item.customPhoto ? `
+    <div style="margin:8px 0 2px;padding:8px 10px;border:1.5px dashed #ec4899;border-radius:10px;font-size:.78rem;font-weight:700;">
+        <a href="${esc(item.customPhoto)}" data-secure-file data-order-id="${esc(orderId)}" target="_blank" rel="noopener" style="color:#ec4899;text-decoration:none;">
+            <i class="fa-solid fa-download"></i> Customer's photo to print: open / download
+        </a>
+        ${item.customNote ? `<div style="margin-top:6px;font-weight:600;color:var(--txt2,#555);"><i class="fa-regular fa-note-sticky"></i> ${esc(item.customNote)}</div>` : ''}
+    </div>` : ''}
     ${buildItemTracker(item.status || 'pending', item.rejectionMessage)}
     ${buildItemActions(item.status || 'pending', idx)}
 </div>`;

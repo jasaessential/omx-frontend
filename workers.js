@@ -353,17 +353,12 @@ class FirestoreService {
     }
 
     // ─── Fetch All Shops ───
-    async fetchXeroxShops(signal) {
+    /* Every active shop (xerox, stationary, books, kits, posters…). Each page
+       keeps the shops for its own service. */
+    async fetchActiveShops(signal) {
         try {
             const allShops = await this.fetchCollection('shops', signal);
-            return allShops.filter(s => {
-                const active = s.status === undefined || String(s.status).toLowerCase() === 'active';
-                const hasXerox = !s.services ||
-                                 (Array.isArray(s.services) && (s.services.length === 0 || s.services.some(sv => String(sv).toLowerCase() === 'xerox'))) ||
-                                 (typeof s.services === 'string' && s.services.toLowerCase().includes('xerox')) ||
-                                 !!s.xeroxConfig || !!s.deliveryPrices?.xerox;
-                return active && hasXerox;
-            });
+            return allShops.filter(s => s.status === undefined || String(s.status).toLowerCase() === 'active');
         } catch (error) {
             Logger.log('FirestoreService', 'Error fetching shops:', error.message);
             throw error;
@@ -644,7 +639,7 @@ async function handleGetItemsByCategory(request, env) {
 
     // Reject missing or 'all' category — the client must always request a specific category.
     // The 'all' cross-category key is only written by the admin refresh endpoint.
-    if (!category || category === 'all') {
+    if (!['stationary', 'books', 'electronic', 'posters'].includes(category) || !SAFE_VERSION.test(v)) {
         return new Response(JSON.stringify({ error: 'category param is required (stationary | books | electronic | posters)' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -758,7 +753,7 @@ async function handleGetShopsAll(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'no-cache, private'  // shop edits must reach customers at once
             }
         });
     }
@@ -768,7 +763,7 @@ async function handleGetShopsAll(request, env) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        const shops = await fs.fetchXeroxShops(controller.signal);
+        const shops = await fs.fetchActiveShops(controller.signal);
         clearTimeout(timeoutId);
 
         await CacheService.set(env, cacheKey, { shops });
@@ -778,7 +773,7 @@ async function handleGetShopsAll(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'no-cache, private'  // shop edits must reach customers at once
             }
         });
     } catch (error) {
@@ -833,16 +828,28 @@ async function handleGetLocations(request, env) {
     }
 }
 
-// Handler: GET /api/data (Universal Collection Handler)
+/* Collections /api/data may serve: only the ones firestore.rules already make
+   public-read catalog data. Anything else (users, orders, wallets…) is refused
+   before the KV cache is even read — old cache entries of private collections
+   must never be served. */
+const PUBLIC_DATA_COLLECTIONS = new Set([
+    'metadata', 'categories', 'categoryData', 'itemAttributes',
+    'states', 'districts', 'cities', 'site_banners', 'site_config', 'xerox_services',
+    'xerox_config_paper', 'xerox_config_binding', 'xerox_config_lamination',
+]);
+const SAFE_ID      = /^[A-Za-z0-9_-]{1,128}$/;
+const SAFE_VERSION = /^\d{1,3}(\.\d{1,3})?$/;
+
+// Handler: GET /api/data (public catalog collections only)
 async function handleGetData(request, env) {
     const url = new URL(request.url);
     const collectionId = url.searchParams.get('collection');
     const docId = url.searchParams.get('id');
     const v = url.searchParams.get('v') || '2.2';
 
-    if (!collectionId) {
-        return new Response(JSON.stringify({ error: 'Missing collection parameter' }), {
-            status: 400,
+    if (!PUBLIC_DATA_COLLECTIONS.has(collectionId) || (docId && !SAFE_ID.test(docId)) || !SAFE_VERSION.test(v)) {
+        return new Response(JSON.stringify({ error: 'Access denied' }), {
+            status: 403,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     }
@@ -868,7 +875,7 @@ async function handleGetData(request, env) {
         let result;
         if (docId) {
             // Fetch single document
-            const response = await fetch(`${fs.baseUrl}/${collectionId}/${docId}?key=${fs.apiKey}`, { signal: controller.signal });
+            const response = await fetch(`${fs.baseUrl}/${collectionId}/${encodeURIComponent(docId)}?key=${fs.apiKey}`, { signal: controller.signal });
             if (!response.ok) throw new Error(`Fetch doc ${docId} failed`);
             const data = await response.json();
             result = { id: docId, ...fs.flattenFields(data.fields) };
@@ -1382,7 +1389,7 @@ async function handleCacheRefresh(request, env) {
         } else if (type === 'shops') {
             const cacheKey = CacheService.getCacheKey('shops', 'all', null, v);
             await CacheService.delete(env, cacheKey);
-            const shops = await fs.fetchXeroxShops(controller.signal);
+            const shops = await fs.fetchActiveShops(controller.signal);
             result = { shops };
             await CacheService.set(env, cacheKey, result);
             writtenKeys.push(cacheKey);
@@ -1429,19 +1436,73 @@ async function handleCacheRefresh(request, env) {
 // MAIN ROUTER
 // ═════════════════════════════════════════════════════════════════
 
+/* ── CORS ──────────────────────────────────────────────────────────
+   Only the site's own origins may call the Worker from a browser. Handlers
+   still write 'Access-Control-Allow-Origin: *'; withCors() replaces it with
+   the caller's origin when allowed. Requests without an Origin (server-to-
+   server, curl) carry no browser credentials and pass through; admin routes
+   still need a Firebase ID token. Extra origins: ALLOWED_ORIGINS var (comma list). */
+const DEFAULT_ORIGINS = [
+    'https://ordermyxerox.com', 'https://www.ordermyxerox.com',
+    'https://jasaessentials.com', 'https://www.jasaessentials.com',
+    'https://ordermyxerox.pages.dev',
+];
+
+function isAllowedOrigin(origin, env) {
+    const extra = String(env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim().replace(/\/+$/, '')).filter(Boolean);
+    if (DEFAULT_ORIGINS.includes(origin) || extra.includes(origin)) return true;
+    if (/^https:\/\/[a-z0-9-]+\.ordermyxerox\.pages\.dev$/.test(origin)) return true;   // Pages previews
+    return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);                   // local dev
+}
+
+function withCors(response, origin) {
+    const res = new Response(response.body, response);
+    res.headers.delete('Access-Control-Allow-Origin');
+    if (origin) {
+        res.headers.set('Access-Control-Allow-Origin', origin);
+        res.headers.append('Vary', 'Origin');
+    }
+    return res;
+}
+
 export default {
     async fetch(request, env) {
-        // CORS Preflight
-        if (request.method === 'OPTIONS') {
-            return new Response(null, {
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                }
+        const origin = request.headers.get('Origin');
+        if (origin && !isAllowedOrigin(origin, env)) {
+            return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+                status: 403, headers: { 'Content-Type': 'application/json', 'Vary': 'Origin' },
             });
         }
 
+        // CORS Preflight
+        if (request.method === 'OPTIONS') {
+            return withCors(new Response(null, {
+                status: 204,
+                headers: {
+                    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                    'Access-Control-Max-Age': '86400',
+                }
+            }), origin);
+        }
+
+        return withCors(await route(request, env), origin);
+    },
+
+    /* Cron (wrangler.toml [triggers]) — runs the payment server's wallet settle +
+       abandoned-checkout sweep every 15 min, waking Render if it is asleep.
+       Needs PAYMENT_SERVER_URL (var) and SERVER_SECRET (secret, same value as on Render). */
+    async scheduled(_event, env, ctx) {
+        if (!env.PAYMENT_SERVER_URL || !env.SERVER_SECRET) return;
+        ctx.waitUntil(fetch(`${env.PAYMENT_SERVER_URL.replace(/\/$/, '')}/api/wallet/settle-all`, {
+            method:  'POST',
+            headers: { 'x-server-secret': env.SERVER_SECRET },
+        }).then(r => console.log('[cron] settle-all', r.status))
+          .catch(e => console.error('[cron] settle-all failed:', e.message)));
+    }
+};
+
+async function route(request, env) {
         const url = new URL(request.url);
         const pathname = url.pathname;
 
@@ -1537,6 +1598,10 @@ export default {
             return handleSetOtherShops(request, env);
         }
 
+        if (pathname === '/api/geo/resolve-map-link' && request.method === 'GET') {
+            return handleResolveMapLink(request, env);
+        }
+
         if (pathname === '/api/cache/refresh-banners' && request.method === 'POST') {
             return handleRefreshBannersCache(request, env);
         }
@@ -1603,20 +1668,7 @@ export default {
             status: 200,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
-    },
-
-    /* Cron (wrangler.toml [triggers]) — runs the payment server's wallet settle +
-       abandoned-checkout sweep every 15 min, waking Render if it is asleep.
-       Needs PAYMENT_SERVER_URL (var) and SERVER_SECRET (secret, same value as on Render). */
-    async scheduled(_event, env, ctx) {
-        if (!env.PAYMENT_SERVER_URL || !env.SERVER_SECRET) return;
-        ctx.waitUntil(fetch(`${env.PAYMENT_SERVER_URL.replace(/\/$/, '')}/api/wallet/settle-all`, {
-            method:  'POST',
-            headers: { 'x-server-secret': env.SERVER_SECRET },
-        }).then(r => console.log('[cron] settle-all', r.status))
-          .catch(e => console.error('[cron] settle-all failed:', e.message)));
-    }
-};
+}
 
 // ─── standalone handlers ───
 
@@ -2026,6 +2078,65 @@ async function handleSetSiteConfig(request, env) {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     }
+}
+
+// ─── Map Link Resolver ───────────────────────────────────────────────────────
+
+/* Google Maps "Share" gives short links (maps.app.goo.gl/…) with no coordinates
+   in them. Follow the redirects (Google hosts only) and read the pin. */
+const MAP_LINK_HOSTS = /^(maps\.app\.goo\.gl|goo\.gl|g\.co|maps\.google\.[a-z.]+|(www\.)?google\.[a-z.]+)$/i;
+
+function latLngFromText(s) {
+    const pats = [/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+                  /[?&](?:q|ll|query|center|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i,
+                  /center=(-?\d+\.\d+)%2C(-?\d+\.\d+)/i];
+    for (const re of pats) {
+        const m = s.match(re);
+        if (!m) continue;
+        const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+    }
+    return null;
+}
+
+/**
+ * GET /api/geo/resolve-map-link?url=<map link>   (admin / manage_items)
+ * → { url, lat, lng } when a pin was found, else { url, query } (place text to search).
+ */
+async function handleResolveMapLink(request, env) {
+    if (!(await verifyAdmin(request, env))) return unauthorized();
+    const json = (body, status = 200) => new Response(JSON.stringify(body), {
+        status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+    let target;
+    try { target = new URL(new URL(request.url).searchParams.get('url') || ''); }
+    catch (_) { return json({ error: 'Not a valid link.' }, 400); }
+
+    try {
+        for (let hop = 0; hop < 6; hop++) {
+            if (target.protocol !== 'https:' || !MAP_LINK_HOSTS.test(target.hostname)) {
+                return json({ error: 'Only Google Maps links are supported.' }, 400);
+            }
+            const pin = latLngFromText(target.href);
+            if (pin) return json({ url: target.href, ...pin });
+            const res = await fetch(target.href, { redirect: 'manual', headers: { 'User-Agent': 'Mozilla/5.0' } });
+            const next = res.headers.get('Location');
+            if (res.status >= 300 && res.status < 400 && next) { target = new URL(next, target); continue; }
+
+            /* Final page: the map preview image carries the centre (center=lat%2Clng) */
+            const html = res.ok ? (await res.text()).slice(0, 400000) : '';
+            const fromPage = latLngFromText(html);
+            if (fromPage) return json({ url: target.href, ...fromPage });
+            break;
+        }
+    } catch (e) {
+        return json({ error: 'Could not open the link: ' + e.message }, 502);
+    }
+    /* No coordinates — hand back the place text so the page can search for it */
+    const place = target.pathname.match(/\/maps\/place\/([^/]+)/);
+    const query = place ? decodeURIComponent(place[1].replace(/\+/g, ' '))
+                        : (target.searchParams.get('q') || target.searchParams.get('query') || '');
+    return json({ url: target.href, query });
 }
 
 // ─── Other Shops Config Handlers ─────────────────────────────────────────────

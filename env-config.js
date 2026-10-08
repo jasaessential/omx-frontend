@@ -105,9 +105,7 @@ export const FIREBASE_CONFIG   = new Proxy({}, {
 export const CLOUDINARY_CONFIG = new Proxy({}, {
     get: (_, key) => _get(`cloudinary.${key}`)
 });
-export const SUPABASE_CONFIG   = new Proxy({}, {
-    get: (_, key) => _get(`supabase.${key}`)
-});
+/* No Supabase config: customer files go through secure-files.js (signed URLs). */
 export const R2_CONFIG         = new Proxy({}, {
     get: (_, key) => _get(`r2.${key}`)
 });
@@ -136,7 +134,6 @@ export async function initAppConfig() {
 /* ── Named async getters (preferred for new code) ── */
 export async function getFirebaseConfig()   { return (await loadConfig()).firebase;   }
 export async function getCloudinaryConfig() { return (await loadConfig()).cloudinary; }
-export async function getSupabaseConfig()   { return (await loadConfig()).supabase;   }
 export async function getR2Config()         { return (await loadConfig()).r2;         }
 export async function getWorkerUrl()        { return WORKER_URL; } // just return the constant
 

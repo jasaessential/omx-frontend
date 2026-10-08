@@ -11,7 +11,8 @@
    ═══════════════════════════════════════════════ */
 
 import { auth, db } from './firebase-init.js';
-import { SUPABASE_CONFIG, WORKER_URL, PAYMENT_SERVER_URL, getSupabaseConfig, initAppConfig } from './env-config.js';
+import { WORKER_URL, PAYMENT_SERVER_URL, initAppConfig } from './env-config.js';
+import { getUploadTarget } from './secure-files.js';
 import {
     collection, getDocs, doc, getDoc, setDoc,
     updateDoc, serverTimestamp, increment, query, where
@@ -3240,23 +3241,16 @@ window.uploadFile = async function(i) {
     f.uploadIntent   = 'active';
     renderUploadRows();
 
-    /* Ensure env config is loaded before reading Supabase creds */
-    let sbUrl, sbKey;
+    /* Signed, single-use upload link from the server (private bucket) */
+    let target;
     try {
-        const sb = await getSupabaseConfig();
-        sbUrl = sb?.url;
-        sbKey = sb?.anonKey;
-    } catch (_) {}
-    if (!sbUrl || !sbKey) {
+        target = await getUploadTarget('xerox', f.fileObj.name);
+    } catch (e) {
         f.uploadStatus = 'pending';
-        showToast('Upload service unavailable. Please try again in a moment.', 'error');
-        renderUploadRows();
+        showToast(currentUser ? `Upload unavailable: ${e.message}` : 'Please sign in to upload files.', 'error');
+        if (_inStep5()) renderStep5UploadRows(); else renderUploadRows();
         return;
     }
-
-    const cleanName = f.fileObj.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const path      = `xerox-uploads/${Date.now()}_${cleanName}`;
-    const url       = `${sbUrl}/storage/v1/object/files/${path}`;
 
     const xhr = new XMLHttpRequest();
     f.xhr = xhr;
@@ -3284,7 +3278,7 @@ window.uploadFile = async function(i) {
         delete f.xhr;
         if (xhr.status >= 200 && xhr.status < 300) {
             f.uploadStatus  = 'uploaded';
-            f.uploadedUrl   = `${sbUrl}/storage/v1/object/public/files/${path}`;
+            f.uploadedUrl   = target.fileUrl;
             f.config.selectedUrl = f.uploadedUrl;
         } else {
             f.uploadStatus = 'pending';
@@ -3320,9 +3314,7 @@ window.uploadFile = async function(i) {
         if (_inStep5()) renderStep5UploadRows(); else renderUploadRows();
     });
 
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Authorization', `Bearer ${sbKey}`);
-    xhr.setRequestHeader('apikey', sbKey);
+    xhr.open('PUT', target.uploadUrl, true);
     if (f.fileObj.type) xhr.setRequestHeader('Content-Type', f.fileObj.type);
     xhr.send(f.fileObj);
 };
