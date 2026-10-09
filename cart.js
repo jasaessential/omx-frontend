@@ -426,7 +426,7 @@ function renderGrid(cart) {
                 ${imgHtml}
             </div>
             <div class="cart-item-body">
-                <a href="item-details.html?id=${item.baseId || item.id}" class="cart-item-name">${item.name}</a>
+                <a href="${item.customPoster ? 'custom-poster.html' : `item-details.html?id=${item.baseId || item.id}`}" class="cart-item-name">${item.name}</a>
                 <div class="cart-item-price">
                     ₹${item.price.toLocaleString('en-IN')}
                     ${item.originalPrice&&item.originalPrice>item.price

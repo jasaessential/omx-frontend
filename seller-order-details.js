@@ -556,8 +556,11 @@ function buildProductCard(item, idx) {
     ${item.customPhoto ? `
     <div style="margin:8px 0 2px;padding:8px 10px;border:1.5px dashed #ec4899;border-radius:10px;font-size:.78rem;font-weight:700;">
         <a href="${esc(item.customPhoto)}" data-secure-file data-order-id="${esc(orderId)}" target="_blank" rel="noopener" style="color:#ec4899;text-decoration:none;">
-            <i class="fa-solid fa-download"></i> Customer's photo to print: open / download
+            <i class="fa-solid fa-download"></i> ${item.customPreview ? "Customer's original picture" : "Customer's photo to print"}: open / download
         </a>
+        ${item.customPreview ? `<br><a href="${esc(item.customPreview)}" data-secure-file data-order-id="${esc(orderId)}" target="_blank" rel="noopener" style="color:#ec4899;text-decoration:none;">
+            <i class="fa-solid fa-crop-simple"></i> Fitted to the poster size (print this): open / download
+        </a>` : ''}
         ${item.customNote ? `<div style="margin-top:6px;font-weight:600;color:var(--txt2,#555);"><i class="fa-regular fa-note-sticky"></i> ${esc(item.customNote)}</div>` : ''}
     </div>` : ''}
     ${buildItemTracker(item.status || 'pending', item.rejectionMessage)}

@@ -1,0 +1,59 @@
+/* ═══════════════════════════════════════════════
+   MANAGE POSTERS — Page Styles
+   ═══════════════════════════════════════════════ */
+.mp-page-title { font-size: .95rem; font-weight: 800; color: var(--txt1); display: flex; align-items: center; gap: 8px; }
+.mp-page-title i { color: var(--primary); }
+
+.mp-save-btn {
+    height: 34px; padding: 0 16px; background: var(--primary); color: #fff;
+    border: none; border-radius: 50px; font-size: .76rem; font-weight: 800; font-family: inherit;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+.mp-save-btn:disabled { opacity: .6; cursor: default; }
+
+.mp-wrap { padding: 14px 14px calc(var(--bnh,64px) + 20px); display: flex; flex-direction: column; gap: 14px; }
+.mp-intro, .mp-hint { font-size: .78rem; font-weight: 600; color: var(--txt3); line-height: 1.5; margin: 0; }
+
+.mp-card { background: var(--bg-white); border: 1px solid var(--border2); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.mp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mp-card-head h2 { font-size: .9rem; font-weight: 800; color: var(--txt1); margin: 0; display: flex; align-items: center; gap: 8px; }
+.mp-card-head h2 i { color: var(--primary); }
+.mp-add {
+    height: 32px; padding: 0 12px; border-radius: 50px; border: 1.5px solid var(--primary);
+    background: transparent; color: var(--primary); font-weight: 800; font-size: .74rem; font-family: inherit; cursor: pointer;
+}
+
+.mp-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-presets button {
+    padding: 5px 12px; border-radius: 50px; border: 1.5px dashed var(--border2); background: transparent;
+    color: var(--txt2); font-weight: 700; font-size: .72rem; font-family: inherit; cursor: pointer;
+}
+
+.mp-rows { display: flex; flex-direction: column; gap: 10px; }
+.mp-row {
+    display: grid; gap: 8px; align-items: end; padding: 10px; border: 1px solid var(--border2); border-radius: 12px;
+    background: var(--bg);
+}
+.mp-row.gsm  { grid-template-columns: 1fr 1fr auto auto; }
+.mp-row.size { grid-template-columns: repeat(2, 1fr); }
+.mp-row.size .full { grid-column: 1 / -1; }
+.mp-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mp-field label { font-size: .64rem; font-weight: 800; color: var(--txt3); text-transform: uppercase; letter-spacing: .5px; }
+.mp-field input {
+    height: 38px; padding: 0 10px; border: 1.5px solid var(--border2); border-radius: 10px; background: var(--bg-white);
+    color: var(--txt1); font-weight: 700; font-size: .84rem; font-family: inherit; width: 100%; min-width: 0;
+}
+.mp-field input:focus { outline: none; border-color: var(--primary); }
+.mp-default { display: flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 800; color: var(--txt2); height: 38px; cursor: pointer; }
+.mp-del { height: 38px; width: 38px; border: none; border-radius: 10px; background: #fee2e2; color: #dc2626; cursor: pointer; }
+.mp-on { display: flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 800; color: var(--txt2); }
+.mp-row.size .actions { display: flex; align-items: center; justify-content: space-between; }
+.mp-empty { font-size: .78rem; font-weight: 600; color: var(--txt3); text-align: center; padding: 10px; }
+
+.mp-toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    padding: 10px 18px; border-radius: 50px; background: #16a34a; color: #fff; font-size: .8rem; font-weight: 800;
+    transition: all .25s; z-index: 9999; max-width: 90vw; text-align: center;
+}
+.mp-toast.error { background: #dc2626; }
+.mp-toast.show { opacity: 1; transform: translate(-50%, 0); }

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="head-cache.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poster Setup — JASA V2</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="manage-posters.css">
+    <meta name="theme-color" content="#2D8CF0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="OrderXerox">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/android/launchericon-192x192.png">
+</head>
+<body>
+
+<!-- ════ SIDEBAR OVERLAY ════ -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ════ SIDEBAR ════ -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="sidebar-brand">
+            <i class="fa-solid fa-print" style="color:var(--primary);"></i>
+            <a href="index.html" class="header-brand">
+                <span class="brand-print">Order</span>
+                <span class="brand-badge"><span class="brand-badge-inner"><span class="brand-badge-front">my</span><span class="brand-badge-back"><img src="favicon.ico" alt=""></span></span></span>
+                <span class="brand-xerox">xerox</span>
+            </a>
+        </div>
+        <button class="sidebar-close" onclick="closeSidebar()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="sbIdentity"></div>
+    <nav class="sidebar-nav" id="sbNav"></nav></aside>
+
+<!-- ════ HEADER ════ -->
+<header class="header" id="mainHeader">
+    <div class="header-inner">
+        <div class="header-left">
+            <button class="hamburger" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+            <span class="mp-page-title"><i class="fa-solid fa-image"></i> Poster Setup</span>
+        </div>
+        <div class="header-right">
+            <button class="mp-save-btn" id="saveBtn" onclick="saveConfig()">
+                <i class="fa-solid fa-check"></i> Save
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ════ MAIN ════ -->
+<main class="main-content">
+    <div class="page-wrap mp-wrap">
+
+        <p class="mp-intro">
+            Settings for <b>Wall Posters → Customize</b>. The customer picks a size, uploads a picture and
+            fits it to the poster. Prices on the customize page come from here.
+        </p>
+
+        <!-- ── GSM ── -->
+        <section class="mp-card">
+            <div class="mp-card-head">
+                <h2><i class="fa-solid fa-scroll"></i> Paper GSM</h2>
+                <button class="mp-add" onclick="addGsm()"><i class="fa-solid fa-plus"></i> Add GSM</button>
+            </div>
+            <p class="mp-hint">Choose the paper weights you print on and mark one as the default (pre-selected for the customer).
+                "Extra ₹" is added to the size price for that GSM (use 0 for none).</p>
+            <div id="gsmList" class="mp-rows"></div>
+        </section>
+
+        <!-- ── SIZES ── -->
+        <section class="mp-card">
+            <div class="mp-card-head">
+                <h2><i class="fa-solid fa-ruler-combined"></i> Sizes &amp; Prices</h2>
+                <button class="mp-add" onclick="addSize()"><i class="fa-solid fa-plus"></i> Add size</button>
+            </div>
+            <p class="mp-hint">Width × height in inches (portrait). The editor canvas uses this shape, so the picture
+                the customer fits matches the print. A size with no price is hidden from customers.</p>
+            <div id="presetRow" class="mp-presets"></div>
+            <div id="sizeList" class="mp-rows"></div>
+        </section>
+
+        <p class="mp-hint" id="savedAt" style="text-align:center;"></p>
+    </div>
+</main>
+
+<div class="mp-toast" id="mpToast"></div>
+
+<script src="app.js"></script>
+<script type="module" src="auth-header.js"></script>
+<script type="module" src="manage-posters.js"></script>
+</body>
+</html>

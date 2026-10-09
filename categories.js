@@ -169,6 +169,8 @@ function activateCategoryTab(cat) {
     document.querySelectorAll('.cat-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.cat === cat);
     });
+    const custom = document.getElementById('customPosterCard');
+    if (custom) custom.style.display = cat === 'posters' ? '' : 'none';
 }
 
 /* ════════════════════════════════

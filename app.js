@@ -239,6 +239,7 @@ function renderSidebarAuth() {
             const adminLinks = [
                 { text: 'Admin Orders',      icon: 'fa-solid fa-clipboard-list',  link: 'admin-orders.html'           },
                 { text: 'Manage Items',      icon: 'fa-solid fa-boxes-stacked',   link: 'manage-items.html'           },
+                { text: 'Poster Setup',      icon: 'fa-solid fa-image',           link: 'manage-posters.html'         },
                 { text: 'Manage Users',      icon: 'fa-solid fa-users-gear',      link: 'manage-users.html'           },
                 { text: 'Manage Shops',      icon: 'fa-solid fa-store',           link: 'manage-shops.html'           },
                 { text: 'Product Requests',  icon: 'fa-solid fa-box-open',        link: 'admin-product-requests.html' },
@@ -285,6 +286,7 @@ function renderSidebarAuth() {
                 { text: 'Delivery Orders', icon: 'fa-solid fa-motorcycle', link: 'employee-orders.html' },
             ];
             if (roles.includes('manage_items'))     empLinks.push({ text: 'Manage Items',     icon: 'fa-solid fa-boxes-stacked', link: 'manage-items.html'           });
+            if (roles.includes('manage_items'))     empLinks.push({ text: 'Poster Setup',     icon: 'fa-solid fa-image',         link: 'manage-posters.html'         });
             if (roles.includes('manage_marketing')) empLinks.push({ text: 'Marketing',        icon: 'fa-solid fa-bullhorn',      link: 'admin-marketing.html'        });
             if (roles.includes('manage_support'))   empLinks.push({ text: 'Support Queries',  icon: 'fa-solid fa-headset',       link: 'admin-support.html'          });
             if (roles.includes('manage_requests'))  empLinks.push({ text: 'Product Requests', icon: 'fa-solid fa-box-open',      link: 'admin-product-requests.html' });

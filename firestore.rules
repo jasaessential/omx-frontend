@@ -326,6 +326,16 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════
+    //  WALL POSTER CONFIG (custom poster sizes, GSM, prices)
+    //  - Public read (customize page)
+    //  - Admin/manage_items write
+    // ═══════════════════════════════════════════════
+    match /poster_config/{docId} {
+      allow read: if true;
+      allow write: if canManageItems();
+    }
+
+    // ═══════════════════════════════════════════════
     //  XEROX CONFIG
     //  - Public read (needed for xerox order page)
     //  - Admin/manage_xerox write

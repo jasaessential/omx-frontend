@@ -505,3 +505,14 @@
     .cat-results-row { padding: 6px 0 0; }
     .cat-grid     { padding: 10px 0 16px; }
 }
+
+/* ── Customize poster entry (Wall Posters) ── */
+.cat-custom-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin: 0 0 12px;
+    border-radius: 16px; text-decoration: none; color: #fff;
+    background: linear-gradient(135deg, #ec4899, #8b5cf6); box-shadow: 0 6px 18px rgba(236,72,153,.28);
+}
+.cat-custom-ico { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+.cat-custom-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cat-custom-txt b { font-size: .92rem; font-weight: 800; }
+.cat-custom-txt small { font-size: .72rem; font-weight: 600; opacity: .9; }
