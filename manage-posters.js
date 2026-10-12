@@ -19,10 +19,17 @@ const PRESETS = [
     { name: '18x24', widthIn: 18, heightIn: 24 },
 ];
 const SIZE_NAME = /^[A-Za-z0-9 .x×-]{1,20}$/;
+const W = window.WallLayouts;
+const PACK_PRESETS = [3, 7, 10, 18, 36];
+const PACK_SIZE_DEFAULTS = { A5: { enabled: false, adjustPercent: -30 }, A4: { enabled: true, adjustPercent: 0 },
+                             A3: { enabled: false, adjustPercent: 30 }, P13: { enabled: false, adjustPercent: 45 } };
 
 let gsmOptions = [];
 let defaultGsm = 0;
 let sizes      = [];
+let wallLayouts = {};   // key → { enabled, priceOriginal, priceDiscount }
+let packSizes   = {};   // A5|A4|A3|P13 → { enabled, adjustPercent }
+let packs       = [];   // [{ count, priceOriginal, priceDiscount }] — A4 prices
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -72,6 +79,59 @@ function renderSizes() {
         </div>`).join('') : '<div class="mp-empty">No sizes yet. Add one above.</div>';
 }
 
+function renderWall() {
+    $('wallList').innerHTML = Object.entries(W.LAYOUTS).map(([k, l]) => {
+        const v = wallLayouts[k] || {};
+        return `
+        <div class="mp-row wall">
+            <div class="full">
+                <label class="mp-on"><input type="checkbox" ${v.enabled ? 'checked' : ''} onchange="setWall('${k}','enabled',this.checked)"> ${esc(l.name)}</label>
+                <small>${W.slotSizes(l).length} posters · ${esc(W.feet(l))}</small>
+            </div>
+            <div class="mp-field"><label>Price ₹ (MRP)</label>
+                <input type="number" inputmode="decimal" min="0" value="${esc(v.priceOriginal ?? '')}" onchange="setWall('${k}','priceOriginal',this.value)"></div>
+            <div class="mp-field"><label>Offer price ₹ (optional)</label>
+                <input type="number" inputmode="decimal" min="0" value="${esc(v.priceDiscount ?? '')}" onchange="setWall('${k}','priceDiscount',this.value)"></div>
+        </div>`;
+    }).join('');
+}
+
+function renderPacks() {
+    $('packSizeList').innerHTML = W.PACK_SIZES.map(s => {
+        const v = packSizes[s] || PACK_SIZE_DEFAULTS[s];
+        return `
+        <div class="mp-row psize">
+            <label class="mp-on"><input type="checkbox" ${v.enabled ? 'checked' : ''} onchange="setPackSize('${s}','enabled',this.checked)"> ${esc(W.SIZES[s].label)} posters</label>
+            <div class="mp-field"><label>± % vs A4</label>
+                <input type="number" inputmode="decimal" min="-90" max="300" ${s === 'A4' ? 'disabled' : ''} value="${esc(v.adjustPercent)}" onchange="setPackSize('${s}','adjustPercent',this.value)"></div>
+        </div>`;
+    }).join('');
+    const have = new Set(packs.map(p => Number(p.count)));
+    $('packPresetRow').innerHTML = PACK_PRESETS.filter(n => !have.has(n)).map(n => `<button onclick="addPack(${n})">+ ${n} posters</button>`).join('');
+    $('packList').innerHTML = packs.length ? packs.map((p, i) => `
+        <div class="mp-row pack">
+            <div class="mp-field"><label>Posters</label>
+                <input type="number" inputmode="numeric" min="1" max="${W.MAX_SLOTS}" value="${esc(p.count)}" onchange="setPack(${i},'count',this.value)"></div>
+            <div class="mp-field"><label>A4 price ₹</label>
+                <input type="number" inputmode="decimal" min="0" value="${esc(p.priceOriginal)}" onchange="setPack(${i},'priceOriginal',this.value)"></div>
+            <div class="mp-field"><label>Offer ₹</label>
+                <input type="number" inputmode="decimal" min="0" value="${esc(p.priceDiscount)}" onchange="setPack(${i},'priceDiscount',this.value)"></div>
+            <button class="mp-del" title="Remove" onclick="removePack(${i})"><i class="fa-solid fa-trash"></i></button>
+        </div>`).join('') : '<div class="mp-empty">No packs yet — packs are hidden from customers until you add one.</div>';
+}
+
+window.setWall = (k, f, v) => {
+    wallLayouts[k] = { ...(wallLayouts[k] || {}) };
+    wallLayouts[k][f] = f === 'enabled' ? !!v : (v === '' ? '' : Number(v));
+};
+window.setPackSize = (s, f, v) => {
+    packSizes[s] = { ...(packSizes[s] || PACK_SIZE_DEFAULTS[s]) };
+    packSizes[s][f] = f === 'enabled' ? !!v : (v === '' ? 0 : Number(v));
+};
+window.addPack    = n => { packs.push({ count: n || '', priceOriginal: '', priceDiscount: '' }); renderPacks(); };
+window.setPack    = (i, f, v) => { packs[i][f] = v === '' ? '' : Number(v); if (f === 'count') renderPacks(); };
+window.removePack = i => { packs.splice(i, 1); renderPacks(); };
+
 /* ─── Edit handlers ─── */
 window.addGsm = () => { gsmOptions.push({ gsm: '', extra: 0 }); renderGsm(); };
 window.setGsm = (i, k, v) => {
@@ -101,17 +161,55 @@ async function load() {
     gsmOptions = Array.isArray(d.gsmOptions) ? d.gsmOptions.map(g => ({ gsm: g.gsm, extra: g.extra || 0 })) : [];
     defaultGsm = Number(d.defaultGsm) || 0;
     sizes      = Array.isArray(d.sizes) ? d.sizes.map(s => ({ ...s })) : [];
+    wallLayouts = { ...(d.wall?.layouts || {}) };
+    packSizes   = { ...PACK_SIZE_DEFAULTS, ...(d.pack?.sizes || {}) };
+    packs       = Array.isArray(d.pack?.packs) ? d.pack.packs.map(p => ({ ...p })) : [];
     renderGsm();
     renderSizes();
+    renderWall();
+    renderPacks();
     if (d.updatedAt?.toDate) $('savedAt').textContent = `Last saved ${d.updatedAt.toDate().toLocaleString('en-IN')}`;
 }
 
 window.saveConfig = async function () {
     const gsms = gsmOptions.map(g => ({ gsm: Number(g.gsm), extra: Number(g.extra) || 0 }));
-    if (!gsms.length) return toast('Add at least one GSM.', 'error');
-    if (gsms.some(g => !(g.gsm >= 50 && g.gsm <= 600) || g.extra < 0)) return toast('Each GSM must be between 50 and 600.', 'error');
-    if (new Set(gsms.map(g => g.gsm)).size !== gsms.length) return toast('The same GSM is listed twice.', 'error');
-    if (!gsms.some(g => g.gsm === defaultGsm)) return toast('Choose a default GSM.', 'error');
+    // GSM only matters for the single custom poster (sizes below).
+    if (sizes.length || gsms.length) {
+        if (!gsms.length) return toast('Add at least one GSM.', 'error');
+        if (gsms.some(g => !(g.gsm >= 50 && g.gsm <= 600) || g.extra < 0)) return toast('Each GSM must be between 50 and 600.', 'error');
+        if (new Set(gsms.map(g => g.gsm)).size !== gsms.length) return toast('The same GSM is listed twice.', 'error');
+        if (!gsms.some(g => g.gsm === defaultGsm)) return toast('Choose a default GSM.', 'error');
+    }
+
+    /* Build your wall */
+    const wallOut = {};
+    for (const [k, v] of Object.entries(wallLayouts)) {
+        if (!W.LAYOUTS[k]) continue;
+        const o = Number(v.priceOriginal) || 0, d = Number(v.priceDiscount) || 0;
+        if (v.enabled && !(o > 0)) return toast(`Enter a price for ${W.LAYOUTS[k].name} (or untick it).`, 'error');
+        if (d && d >= o) return toast(`The offer price of ${W.LAYOUTS[k].name} must be lower than its price.`, 'error');
+        if (v.enabled || o > 0) wallOut[k] = { enabled: !!v.enabled, priceOriginal: o, priceDiscount: d };
+    }
+
+    /* Poster packs */
+    const packSizesOut = {};
+    for (const s of W.PACK_SIZES) {
+        const v = packSizes[s] || PACK_SIZE_DEFAULTS[s];
+        const adj = s === 'A4' ? 0 : Number(v.adjustPercent) || 0;
+        if (adj < -90 || adj > 300) return toast(`The ${W.SIZES[s].label} percent must be between -90 and 300.`, 'error');
+        packSizesOut[s] = { enabled: !!v.enabled, adjustPercent: adj };
+    }
+    const packsOut = [];
+    for (const p of packs) {
+        const n = Number(p.count), o = Number(p.priceOriginal) || 0, d = Number(p.priceDiscount) || 0;
+        if (!Number.isInteger(n) || n < 1 || n > W.MAX_SLOTS) return toast(`A pack must have 1 to ${W.MAX_SLOTS} posters.`, 'error');
+        if (!(o > 0)) return toast(`Enter a price for the ${n}-poster pack.`, 'error');
+        if (d && d >= o) return toast(`The offer price of the ${n}-poster pack must be lower than its price.`, 'error');
+        packsOut.push({ count: n, priceOriginal: o, priceDiscount: d });
+    }
+    if (new Set(packsOut.map(p => p.count)).size !== packsOut.length) return toast('Two packs have the same number of posters.', 'error');
+    packsOut.sort((a, b) => a.count - b.count);
+    if (packsOut.length && !Object.values(packSizesOut).some(s => s.enabled)) return toast('Tick at least one pack size.', 'error');
 
     const out = [];
     for (const s of sizes) {
@@ -124,13 +222,17 @@ window.saveConfig = async function () {
         out.push({ name, widthIn: w, heightIn: h, priceOriginal: o || 0, priceDiscount: d, enabled: s.enabled !== false });
     }
     if (new Set(out.map(s => s.name)).size !== out.length) return toast('Two sizes have the same name.', 'error');
-    if (!out.some(s => s.enabled && s.priceOriginal > 0)) return toast('Add at least one priced size.', 'error');
+    const anyWall = Object.values(wallOut).some(v => v.enabled);
+    if (!out.some(s => s.enabled && s.priceOriginal > 0) && !anyWall && !packsOut.length) return toast('Add at least one priced size, wall layout or pack.', 'error');
 
     const btn = $('saveBtn');
     btn.disabled = true;
     try {
         await setDoc(doc(db, 'poster_config', 'main'), {
-            gsmOptions: gsms, defaultGsm, sizes: out, updatedAt: serverTimestamp(),
+            gsmOptions: gsms, defaultGsm, sizes: out,
+            wall: { layouts: wallOut },
+            pack: { sizes: packSizesOut, packs: packsOut },
+            updatedAt: serverTimestamp(),
         });
         toast('Saved. Customers see the new prices now.');
         load();

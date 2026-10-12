@@ -9,6 +9,7 @@
 import { auth, db } from './firebase-init.js';
 import { WORKER_URL, PAYMENT_SERVER_URL } from './env-config.js';
 import { getUploadTarget } from './secure-files.js';   // signed upload / view links
+import { wallSlotsHtml } from './wall-order-view.js';
 
 /* Customer changes to a placed order go through the server, which recomputes
    the totals (POST /api/orders/cancel-item and /attach-file). */
@@ -385,6 +386,7 @@ function buildItemCard(item, idx, order) {
                 ${itemStatusBadge(item.status || 'pending')}
             </div>
         </div>
+        ${wallSlotsHtml(item, order.id)}
         ${buildOdItemTracker(item.status, item.rejectionMessage)}
         ${cancelBtn}
     </div>`;

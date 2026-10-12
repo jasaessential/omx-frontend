@@ -48,6 +48,11 @@
 .mp-del { height: 38px; width: 38px; border: none; border-radius: 10px; background: #fee2e2; color: #dc2626; cursor: pointer; }
 .mp-on { display: flex; align-items: center; gap: 6px; font-size: .74rem; font-weight: 800; color: var(--txt2); }
 .mp-row.size .actions { display: flex; align-items: center; justify-content: space-between; }
+.mp-row.wall { grid-template-columns: 1fr 1fr; }
+.mp-row.wall .full { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mp-row.wall .full small { font-size: .7rem; font-weight: 600; color: var(--txt3); }
+.mp-row.psize { grid-template-columns: 1fr 1fr; align-items: center; }
+.mp-row.pack { grid-template-columns: 1fr 1fr 1fr auto; }
 .mp-empty { font-size: .78rem; font-weight: 600; color: var(--txt3); text-align: center; padding: 10px; }
 
 .mp-toast {

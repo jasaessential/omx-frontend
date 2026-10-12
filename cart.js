@@ -426,7 +426,8 @@ function renderGrid(cart) {
                 ${imgHtml}
             </div>
             <div class="cart-item-body">
-                <a href="${item.customPoster ? 'custom-poster.html' : `item-details.html?id=${item.baseId || item.id}`}" class="cart-item-name">${item.name}</a>
+                <a href="${item.wallPoster ? `wall-builder.html?mode=${item.wallPoster === 'pack' ? 'pack' : 'wall'}` : item.customPoster ? 'custom-poster.html' : `item-details.html?id=${item.baseId || item.id}`}" class="cart-item-name">${item.name}</a>
+                ${Array.isArray(item.wallSlots) ? `<div class="cart-item-sub-label" style="margin:2px 0 4px;">${item.wallSlots.length} posters${item.wallSlots.some(s => s.photo) ? ` · ${item.wallSlots.filter(s => s.photo).length} your photo(s)` : ''}</div>` : ''}
                 <div class="cart-item-price">
                     ₹${item.price.toLocaleString('en-IN')}
                     ${item.originalPrice&&item.originalPrice>item.price

@@ -58,8 +58,8 @@
     <div class="page-wrap mp-wrap">
 
         <p class="mp-intro">
-            Settings for <b>Wall Posters → Customize</b>. The customer picks a size, uploads a picture and
-            fits it to the poster. Prices on the customize page come from here.
+            Settings for <b>Wall Posters → Customize</b>: the single custom poster, <b>Build your wall</b> and
+            <b>Mix &amp; match poster packs</b>. Prices on those pages come from here, and orders are priced again from here.
         </p>
 
         <!-- ── GSM ── -->
@@ -85,6 +85,29 @@
             <div id="sizeList" class="mp-rows"></div>
         </section>
 
+        <!-- ── BUILD YOUR WALL ── -->
+        <section class="mp-card">
+            <div class="mp-card-head">
+                <h2><i class="fa-solid fa-table-cells-large"></i> Build your wall</h2>
+            </div>
+            <p class="mp-hint">Ready-made wall layouts. The customer fills every spot with a Wall Posters design or their own
+                photo; sizes are fixed by the layout. Tick a layout and give it a price to offer it — the price is for the whole wall.</p>
+            <div id="wallList" class="mp-rows"></div>
+        </section>
+
+        <!-- ── POSTER PACKS ── -->
+        <section class="mp-card">
+            <div class="mp-card-head">
+                <h2><i class="fa-solid fa-layer-group"></i> Mix &amp; match poster packs</h2>
+                <button class="mp-add" onclick="addPack()"><i class="fa-solid fa-plus"></i> Add pack</button>
+            </div>
+            <p class="mp-hint">Pack prices are for <b>A4</b>. Other sizes cost the A4 price plus or minus their percent
+                (for example A3 at +30 % makes a ₹499 pack ₹649).</p>
+            <div id="packSizeList" class="mp-rows"></div>
+            <div id="packPresetRow" class="mp-presets"></div>
+            <div id="packList" class="mp-rows"></div>
+        </section>
+
         <p class="mp-hint" id="savedAt" style="text-align:center;"></p>
     </div>
 </main>
@@ -92,7 +115,8 @@
 <div class="mp-toast" id="mpToast"></div>
 
 <script src="app.js"></script>
+<script src="wall-layouts.js?v=1"></script>
 <script type="module" src="auth-header.js"></script>
-<script type="module" src="manage-posters.js"></script>
+<script type="module" src="manage-posters.js?v=20261012a"></script>
 </body>
 </html>

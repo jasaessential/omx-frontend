@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="categories.css">
+    <link rel="stylesheet" href="categories.css?v=20261012a">
     <meta name="theme-color" content="#2D8CF0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -121,6 +121,22 @@
             </span>
             <i class="fa-solid fa-chevron-right"></i>
         </a>
+        <a href="wall-builder.html?mode=wall" class="cat-custom-card cat-custom-wall" style="display:none;">
+            <span class="cat-custom-ico"><i class="fa-solid fa-table-cells-large"></i></span>
+            <span class="cat-custom-txt">
+                <b>Build your wall</b>
+                <small>Pick a wall layout, fill every spot with posters or your photos</small>
+            </span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </a>
+        <a href="wall-builder.html?mode=pack" class="cat-custom-card cat-custom-pack" style="display:none;">
+            <span class="cat-custom-ico"><i class="fa-solid fa-layer-group"></i></span>
+            <span class="cat-custom-txt">
+                <b>Mix &amp; match poster pack</b>
+                <small>Pick any posters in a value pack — bigger packs cost less</small>
+            </span>
+            <i class="fa-solid fa-chevron-right"></i>
+        </a>
 
         <!-- ── ACTIVE FILTER CHIPS ── -->
         <div class="cat-chips" id="activeChips" style="display:none;"></div>
@@ -190,6 +206,6 @@
     <div class="cat-toast" id="catToast"></div>
     <script src="app.js"></script>
     <script type="module" src="auth-header.js"></script>
-    <script type="module" src="categories.js?v=20261009a"></script>
+    <script type="module" src="categories.js?v=20261012a"></script>
 </body>
 </html>

@@ -14,6 +14,7 @@ import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { WORKER_URL } from './env-config.js';
 import './secure-files.js';   // opens customer files via signed links
+import { wallSlotsHtml } from './wall-order-view.js';
 import { moveBookCharge } from './xerox-book.js';
 
 /* ── URL params ── */
@@ -563,6 +564,7 @@ function buildProductCard(item, idx) {
         </a>` : ''}
         ${item.customNote ? `<div style="margin-top:6px;font-weight:600;color:var(--txt2,#555);"><i class="fa-regular fa-note-sticky"></i> ${esc(item.customNote)}</div>` : ''}
     </div>` : ''}
+    ${wallSlotsHtml(item, orderId, { staff: true })}
     ${buildItemTracker(item.status || 'pending', item.rejectionMessage)}
     ${buildItemActions(item.status || 'pending', idx)}
 </div>`;

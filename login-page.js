@@ -20,13 +20,21 @@ import {
     getDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+/** Where to go after signing in: ?redirect=<page>.html[?query] on this site, else home.
+    Only plain page names are accepted, so the link can't send users elsewhere. */
+function afterLogin() {
+    const r = new URLSearchParams(window.location.search).get('redirect') || '';
+    const page = r.replace(/^\//, '');
+    return /^[A-Za-z0-9_-]+\.html(\?[A-Za-z0-9_=&%.-]*)?$/.test(page) ? page : 'index.html';
+}
+
 /* ════════════════════════════════
    REDIRECT IF ALREADY LOGGED IN
    ════════════════════════════════ */
 onAuthStateChanged(auth, (user) => {
     if (user) {
         // already signed-in — send straight to home
-        window.location.replace('index.html');
+        window.location.replace(afterLogin());
     }
 });
 
@@ -176,7 +184,7 @@ async function handleLogin(e) {
         }
 
         showNotif('success', 'Welcome back!', 'Redirecting to home…');
-        setTimeout(() => window.location.replace('index.html'), 1200);
+        setTimeout(() => window.location.replace(afterLogin()), 1200);
 
     } catch (err) {
         console.error('Login error:', err.code);
@@ -229,7 +237,7 @@ async function handleRegister(e) {
             JSON.stringify({ ...userData, uid: cred.user.uid }));
 
         showNotif('success', 'Account Created!', 'Welcome to JASA Essential! Redirecting…');
-        setTimeout(() => window.location.replace('index.html'), 1800);
+        setTimeout(() => window.location.replace(afterLogin()), 1800);
 
     } catch (err) {
         console.error('Register error:', err.code);
@@ -265,7 +273,7 @@ document.getElementById('googleBtn')?.addEventListener('click', async () => {
             localStorage.setItem('jasa_user_cache',
                 JSON.stringify({ ...snap.data(), email: user.email, uid: user.uid }));
             showNotif('success', 'Signed in!', 'Welcome back! Redirecting…');
-            setTimeout(() => window.location.replace('index.html'), 1200);
+            setTimeout(() => window.location.replace(afterLogin()), 1200);
 
         } else {
             // New Google user — create Firestore record automatically
@@ -283,7 +291,7 @@ document.getElementById('googleBtn')?.addEventListener('click', async () => {
             localStorage.setItem('jasa_user_cache',
                 JSON.stringify({ ...userData, uid: user.uid }));
             showNotif('success', 'Account Created!', 'Welcome to JASA Essential! Redirecting…');
-            setTimeout(() => window.location.replace('index.html'), 1800);
+            setTimeout(() => window.location.replace(afterLogin()), 1800);
         }
 
     } catch (err) {
