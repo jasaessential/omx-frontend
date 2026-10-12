@@ -7,7 +7,8 @@
    getUploadTarget(kind, name, orderId?) → { uploadUrl, fileUrl }
        PUT the file to uploadUrl, then store fileUrl on the order.
    Links rendered as <a data-secure-file data-order-id="…" href="<fileUrl>">
-   open through the server automatically (click handler below).
+   get a signed href automatically (signLinks below), or open through the
+   server on click.
    ═══════════════════════════════════════════════ */
 import { auth } from './firebase-init.js';
 import { SERVER_URL } from './env-config.js';
@@ -50,11 +51,55 @@ export async function openSecureFile(args) {
     }
 }
 
+/* Order file links get a signed URL in their href as soon as they render, so
+   a tap in the Android app, long-press → open / download, or "open in new tab"
+   all reach the file (the stored link 404s: the bucket is private). The stored
+   link moves to data-src. Signed links last 15 min; older ones are re-signed
+   on click. */
+const SIGNED_FRESH_MS = 12 * 60 * 1000;
+const isFresh = a => Date.now() - Number(a.dataset.signedAt || 0) < SIGNED_FRESH_MS;
+const storedLink = a => a.dataset.src || a.getAttribute('href');
+
+async function signLinks() {
+    const byOrder = new Map();
+    document.querySelectorAll('a[data-secure-file][data-order-id]:not([data-signing])').forEach(a => {
+        if (isFresh(a)) return;
+        a.dataset.signing = '';
+        const id = a.dataset.orderId;
+        if (!byOrder.has(id)) byOrder.set(id, []);
+        byOrder.get(id).push(a);
+    });
+    for (const [orderId, links] of byOrder) {
+        try {
+            const { urls } = await filesApi('view-urls', {
+                method: 'POST', body: JSON.stringify({ orderId, urls: links.map(storedLink) }),
+            });
+            for (const a of links) {
+                const src = storedLink(a), signed = urls[src];
+                if (!signed) continue;
+                a.dataset.src = src;
+                a.href = signed;
+                a.dataset.signedAt = String(Date.now());
+            }
+        } catch (e) {
+            console.warn('secure-files: could not sign links', e.message);   // click still works
+        } finally {
+            links.forEach(a => delete a.dataset.signing);
+        }
+    }
+}
+
+let _signTimer = 0;
+const scheduleSign = () => { clearTimeout(_signTimer); _signTimer = setTimeout(signLinks, 150); };
+new MutationObserver(scheduleSign).observe(document.documentElement, { childList: true, subtree: true });
+auth.onAuthStateChanged?.(u => { if (u) scheduleSign(); });
+setInterval(() => { if (document.visibilityState === 'visible') signLinks(); }, 60 * 1000);
+
 document.addEventListener('click', e => {
     const a = e.target.closest?.('a[data-secure-file]');
-    if (!a) return;
+    if (!a || (!a.dataset.path && isFresh(a))) return;   // fresh signed href: let the browser open it
     e.preventDefault();
     openSecureFile(a.dataset.path
         ? { path: a.dataset.path }
-        : { orderId: a.dataset.orderId, url: a.getAttribute('href') });
+        : { orderId: a.dataset.orderId, url: storedLink(a) });
 });

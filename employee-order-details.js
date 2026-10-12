@@ -437,6 +437,9 @@ function buildDocCard(d, idx) {
     const rejectNote = d.rejectionMessage
         ? `<div class="sod-rejection-note"><i class="fa-solid fa-ban"></i> ${esc(d.rejectionMessage)}</div>` : '';
 
+    const fileBtn = (d.uploadedUrl && d.uploadedUrl.startsWith('http'))
+        ? `<a href="${esc(d.uploadedUrl)}" data-secure-file data-order-id="${esc(orderId)}" target="_blank" class="sod-file-btn"><i class="fa-solid fa-eye"></i> View / Download File</a>` : '';
+
     return `
 <div class="sod-item-card" id="eodItem-${idx}">
     <div class="sod-item-head">
@@ -454,6 +457,7 @@ function buildDocCard(d, idx) {
             <i class="${iSt.icon}"></i> ${iSt.label}
         </span>
     </div>
+    ${fileBtn}
     ${rejectNote}
     <div class="sod-config-block">
         <div class="sod-config-title"><i class="fa-solid fa-file-invoice"></i> Print Configuration</div>
