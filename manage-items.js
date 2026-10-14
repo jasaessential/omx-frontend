@@ -7,7 +7,7 @@ import { onAuthStateChanged }     from 'https://www.gstatic.com/firebasejs/10.8.
 import {
     collection, addDoc, getDocs, query, where,
     updateDoc, doc, deleteDoc, setDoc, getDoc,
-    arrayUnion, arrayRemove
+    arrayUnion, arrayRemove, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 /* ════════════════════════════════
@@ -89,6 +89,8 @@ window.switchTab = function(cat, btn) {
     document.getElementById('attrInput1').placeholder       = `e.g. ${(ATTR_EXAMPLE[cat] || ATTR_EXAMPLE.stationary)[0]}`;
     document.getElementById('attrLabel2').textContent       = cfg.attr2Label;
     document.getElementById('attrInput2').placeholder       = `e.g. ${(ATTR_EXAMPLE[cat] || ATTR_EXAMPLE.stationary)[1]}`;
+    document.getElementById('posterTools').style.display    = cat === 'posters' ? '' : 'none';
+    if (cat === 'posters') loadStdPrices().then(updateStdSummary);
     fetchItems(cat);
 };
 
@@ -342,7 +344,13 @@ window.openCreateModal = async function(cat) {
 
     openModal();
     sizePriceDraft = {};
+    if (cat === 'posters') await loadStdPrices();
     await loadAttrChips(cat);
+    // New poster: start with the Default sizes and their standard prices
+    if (cat === 'posters') (stdPrices.defaultSizes || []).forEach(sz => {
+        const cb = document.querySelector(`input[name="item-type"][value="${CSS.escape(sz)}"]`);
+        if (cb) cb.checked = true;
+    });
     renderSizePrices();
 };
 
@@ -411,6 +419,7 @@ window.editItem = async function(id) {
         document.getElementById('fTypesBox').innerHTML  = '<span class="mi-chips-empty">Loading…</span>';
 
         openModal();
+        if (cat === 'posters') await loadStdPrices();
         await loadAttrChips(cat);
 
         // Pre-check existing values after chips render
@@ -424,6 +433,7 @@ window.editItem = async function(id) {
             types.forEach(v => {
                 const cb = document.querySelector(`input[name="item-type"][value="${CSS.escape(v)}"]`);
                 if (cb) cb.checked = true;
+                else if (cat === 'posters') appendSizeChip(v);   // Mixed / custom size of this poster
             });
             sizePriceDraft = { ...(item.sizePrices || {}) };
             document.getElementById('fCustomUpload').checked = item.customUpload === true;
@@ -450,11 +460,16 @@ function renderSizePrices() {
     document.getElementById('fPriceOrg').required = !on;
     document.getElementById('fBasePriceRow').style.display = on ? 'none' : '';
     document.getElementById('fCustomUploadWrap').style.display = on ? '' : 'none';
+    document.getElementById('fOwnSizes').style.display = on ? '' : 'none';
+    document.getElementById('fOwnSizesHint').style.display = on ? '' : 'none';
     if (!on) return;
     readSizePriceInputs();
     const sizes = Array.from(document.querySelectorAll('input[name="item-type"]:checked')).map(c => c.value);
+    document.getElementById('fUseStdBtn').style.display = Object.keys(stdPrices.sizePrices || {}).length ? '' : 'none';
     document.getElementById('fSizePrices').innerHTML = sizes.length ? sizes.map(sz => {
-        const v = sizePriceDraft[sz] || {};
+        // A size with nothing typed yet starts at its standard price
+        const typed = sizePriceDraft[sz];
+        const v = typed && (typed.priceOriginal !== '' && typed.priceOriginal != null) ? typed : (stdPrices.sizePrices?.[sz] || typed || {});
         return `<div class="mi-field-row" data-size="${sz.replace(/"/g,'&quot;')}" style="align-items:center;margin-bottom:6px;">
             <div style="font-weight:800;min-width:60px;">${sz.replace(/</g,'&lt;')}</div>
             <input type="number" step="0.01" min="0" class="mi-input sp-org"  placeholder="Original ₹" value="${v.priceOriginal ?? ''}">
@@ -463,6 +478,225 @@ function renderSizePrices() {
     }).join('') : '<span class="mi-chips-empty">Tick one or more sizes above to set their prices.</span>';
 }
 document.addEventListener('change', e => { if (e.target.name === 'item-type') renderSizePrices(); });
+
+/* ── Wall posters: a size for this poster only ("Mixed", "24x36", …) ──
+   Added as a ticked Size chip, so it gets a price row and is saved in the
+   poster's types / sizePrices like any other size; customers see it as a size option. */
+const OWN_SIZE = /^[A-Za-z0-9][A-Za-z0-9 .x×*-]{0,19}$/;
+function appendSizeChip(v) {
+    const box = document.getElementById('fTypesBox');
+    box.querySelector('.mi-chips-empty')?.remove();
+    const label = document.createElement('label');
+    label.className = 'mi-chip-check mi-chip-own';
+    label.innerHTML = `<input type="checkbox" name="item-type" value="${esc(v)}" checked><span>${esc(v)}</span>`;
+    box.appendChild(label);
+}
+window.addPosterSize = function(raw) {
+    const v = String(raw || '').trim().replace(/\s+/g, ' ');
+    if (!v) { toast('Type a size, e.g. 24x36.', 'error'); return; }
+    if (!OWN_SIZE.test(v)) { toast('Use letters, numbers, space, . x - (max 20), e.g. 24x36.', 'error'); return; }
+    const have = [...document.querySelectorAll('input[name="item-type"]')].find(c => c.value.toLowerCase() === v.toLowerCase());
+    if (have) have.checked = true; else appendSizeChip(v);
+    document.getElementById('fCustomSize').value = '';
+    renderSizePrices();
+};
+document.getElementById('fCustomSize').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addPosterSize(e.target.value); }
+});
+
+/* ════════════════════════════════
+   STANDARD POSTER PRICES — poster_config/catalog
+   { sizePrices: { <size>: { priceOriginal, priceDiscount } }, defaultSizes: [] }
+   Admin-only helper: fills new posters and bulk-updates existing ones.
+   Orders are still priced from each poster's own sizePrices.
+   ════════════════════════════════ */
+let stdPrices = { sizePrices: {}, defaultSizes: [] };
+async function loadStdPrices() {
+    try {
+        const snap = await getDoc(doc(db, 'poster_config', 'catalog'));
+        const d = snap.exists() ? snap.data() : {};
+        stdPrices = { sizePrices: d.sizePrices || {}, defaultSizes: Array.isArray(d.defaultSizes) ? d.defaultSizes : [] };
+    } catch (e) { console.warn('[ManageItems] standard prices:', e.message); }
+    return stdPrices;
+}
+function updateStdSummary() {
+    const el = document.getElementById('stdPriceSummary');
+    const list = Object.entries(stdPrices.sizePrices || {});
+    el.textContent = list.length
+        ? list.map(([sz, p]) => `${sz} ₹${p.priceDiscount > 0 ? p.priceDiscount : p.priceOriginal}`).join(' · ')
+        : 'Set once per size — new posters fill in automatically';
+}
+
+/** "Use standard prices" in the poster form: every ticked size gets its standard price. */
+window.useStdPrices = function() {
+    readSizePriceInputs();
+    Object.entries(stdPrices.sizePrices || {}).forEach(([sz, p]) => { sizePriceDraft[sz] = { ...p }; });
+    renderSizePrices();
+    toast('Standard prices filled in.', 'success');
+};
+
+async function posterSizes() {
+    const snap = await getDoc(doc(db, 'metadata', 'item_filters'));
+    return (snap.exists() ? snap.data().posters?.types : null) || [];
+}
+
+window.openPriceSheet = async function() {
+    document.getElementById('priceSheetOverlay').classList.add('open');
+    document.getElementById('priceSheet').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const box = document.getElementById('stdPriceRows');
+    box.innerHTML = '<div class="mi-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+    try {
+        const [sizes] = await Promise.all([posterSizes(), loadStdPrices()]);
+        const suggested = Object.keys(stdPrices.sizePrices).length ? null : await pricesInUse();
+        const prices = suggested ? suggested.sizePrices : stdPrices.sizePrices;
+        const defaults = suggested ? suggested.defaultSizes : stdPrices.defaultSizes;
+        const all = [...new Set([...sizes, ...Object.keys(prices)])];
+        box.innerHTML = (suggested && Object.keys(prices).length
+            ? '<p class="mi-hint" style="margin:0 0 10px;color:#16a34a;"><i class="fa-solid fa-wand-magic-sparkles"></i> Filled in from the prices your posters use now — check them and save.</p>' : '')
+            + (all.length ? all.map(sz => {
+            const p = prices[sz] || {};
+            return `<div class="mi-std-row" data-size="${esc(sz)}">
+                <b>${esc(sz)}</b>
+                <input type="number" step="0.01" min="0" class="mi-input std-org"  placeholder="MRP ₹"   value="${p.priceOriginal ?? ''}">
+                <input type="number" step="0.01" min="0" class="mi-input std-disc" placeholder="Offer ₹" value="${p.priceDiscount || ''}">
+                <label><input type="checkbox" class="std-def" ${defaults.includes(sz) ? 'checked' : ''}> Default</label>
+            </div>`;
+        }).join('') : '<span class="mi-chips-empty">Add sizes first (Size → Save above), e.g. A4, A3.</span>');
+    } catch (e) {
+        box.innerHTML = '<span class="mi-chips-empty" style="color:#dc2626;">Could not load sizes.</span>';
+    }
+};
+/** Most common price of each size across the current posters (a starting point
+    before any standard prices are saved). Default = sizes most posters have. */
+async function pricesInUse() {
+    const qs = await getDocs(query(collection(db, 'items'), where('category', '==', 'posters')));
+    const seen = {};   // size → { "o|d": count }
+    let n = 0;
+    qs.docs.forEach(d => {
+        const sp = d.data().customUpload ? null : d.data().sizePrices;
+        if (!sp) return;
+        n++;
+        Object.entries(sp).forEach(([sz, p]) => {
+            const k = `${Number(p.priceOriginal) || 0}|${Number(p.priceDiscount) || 0}`;
+            (seen[sz] = seen[sz] || {})[k] = (seen[sz][k] || 0) + 1;
+        });
+    });
+    const sizePrices = {}, defaultSizes = [];
+    Object.entries(seen).forEach(([sz, counts]) => {
+        const [best] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        const [o, dsc] = best.split('|').map(Number);
+        if (!(o > 0)) return;
+        sizePrices[sz] = { priceOriginal: o, priceDiscount: dsc };
+        if (Object.values(counts).reduce((s, c) => s + c, 0) * 2 >= n) defaultSizes.push(sz);
+    });
+    return { sizePrices, defaultSizes };
+}
+
+window.closePriceSheet = function() {
+    document.getElementById('priceSheetOverlay').classList.remove('open');
+    document.getElementById('priceSheet').classList.remove('open');
+    document.body.style.overflow = '';
+};
+
+/** Lowest selling price of a sizePrices map → the item's base (card) prices. */
+function basePriceOf(sizePrices) {
+    let best = null;
+    Object.values(sizePrices).forEach(p => {
+        const o = Number(p.priceOriginal) || 0, d = Number(p.priceDiscount) || 0;
+        const eff = d > 0 && d < o ? d : o;
+        if (o > 0 && (!best || eff < best.eff)) best = { eff, o, d };
+    });
+    return best;
+}
+
+window.saveStdPrices = async function(apply) {
+    const sizePrices = {}, defaultSizes = [];
+    for (const row of document.querySelectorAll('#stdPriceRows [data-size]')) {
+        const sz = row.dataset.size;
+        const o = parseFloat(row.querySelector('.std-org').value || 0);
+        const d = parseFloat(row.querySelector('.std-disc').value || 0);
+        const def = row.querySelector('.std-def').checked;
+        if (!(o > 0)) {
+            if (d || def) return toast(`Enter the MRP for ${sz} (or clear it).`, 'error');
+            continue;
+        }
+        if (d && d >= o) return toast(`The offer price of ${sz} must be below its MRP.`, 'error');
+        sizePrices[sz] = { priceOriginal: o, priceDiscount: d || 0 };
+        if (def) defaultSizes.push(sz);
+    }
+    const addDefaults    = document.getElementById('stdAddDefaults').checked;
+    const includeCustom  = document.getElementById('stdIncludeCustom').checked;
+    if (apply && !Object.keys(sizePrices).length) return toast('Enter at least one price.', 'error');
+
+    try {
+        await setDoc(doc(db, 'poster_config', 'catalog'), { sizePrices, defaultSizes, updatedAt: new Date().toISOString() });
+        stdPrices = { sizePrices, defaultSizes };
+        updateStdSummary();
+    } catch (e) { return toast('Could not save: ' + e.message, 'error'); }
+    if (!apply) { toast('Standard prices saved.', 'success'); closePriceSheet(); return; }
+
+    /* Bulk update: every poster's sizes take the standard price */
+    const qs = await getDocs(query(collection(db, 'items'), where('category', '==', 'posters')));
+    const now = new Date().toISOString();
+    const changes = [];
+    qs.docs.forEach(d => {
+        const it = d.data();
+        if (it.customUpload && !includeCustom) return;
+        const sp = { ...(it.sizePrices || {}) };
+        const types = [...(it.types || [])];
+        Object.keys(sp).forEach(sz => { if (sizePrices[sz]) sp[sz] = { ...sizePrices[sz] }; });
+        if (addDefaults) defaultSizes.forEach(sz => {
+            if (!sp[sz]) sp[sz] = { ...sizePrices[sz] };
+            if (!types.includes(sz)) types.push(sz);
+        });
+        const base = basePriceOf(sp);
+        if (!base || JSON.stringify(sp) === JSON.stringify(it.sizePrices || {})) return;
+        changes.push([d.ref, {
+            sizePrices: sp, types, type: types[0] || it.type || 'general',
+            priceOriginal: base.o, priceDiscount: base.d || 0,
+            searchTags: [...new Set([...(it.searchTags || []), ...types])],
+            updatedAt: now,
+        }]);
+    });
+    if (!changes.length) { toast('Saved. Every poster already has these prices.', 'success'); closePriceSheet(); return; }
+    if (!confirm(`Update the prices of ${changes.length} poster${changes.length === 1 ? '' : 's'} to the standard prices?`)) return;
+    try {
+        for (let i = 0; i < changes.length; i += 400) {
+            const batch = writeBatch(db);
+            changes.slice(i, i + 400).forEach(([ref, data]) => batch.update(ref, data));
+            await batch.commit();
+        }
+        await syncSnapshot('posters');
+        toast(`${changes.length} poster${changes.length === 1 ? '' : 's'} updated.`, 'success');
+        closePriceSheet();
+        if (window.activeTab === 'posters') fetchItems('posters');
+    } catch (e) {
+        console.error('[ManageItems] apply standard prices:', e);
+        toast('Update failed: ' + e.message, 'error');
+    }
+};
+
+/* ════════════════════════════════
+   SUGGESTED POSTER THEMES (sub-categories)
+   Shoppers browse Wall Posters by Theme; this adds the usual set in one tap.
+   ════════════════════════════════ */
+const SUGGESTED_THEMES = ['Movies & TV', 'Anime', 'Cars & Bikes', 'Sports', 'Music', 'Quotes & Motivation',
+                          'Aesthetic & Minimal', 'Nature & Travel', 'Gaming', 'Spiritual'];
+window.addSuggestedThemes = async function() {
+    try {
+        const snap = await getDoc(doc(db, 'metadata', 'item_filters'));
+        const have = new Set((snap.exists() ? snap.data().posters?.brands : null) || []);
+        const add = SUGGESTED_THEMES.filter(t => !have.has(t));
+        if (!add.length) return toast('All suggested themes are already added.', 'success');
+        if (!confirm(`Add ${add.length} theme${add.length === 1 ? '' : 's'}?\n\n${add.join(', ')}`)) return;
+        const now = new Date().toISOString();
+        await Promise.all(add.map(name => addDoc(collection(db, 'itemAttributes'), { category: 'posters', type: 'brand', name, createdAt: now })));
+        await updateDoc(doc(db, 'metadata', 'item_filters'), { 'posters.brands': arrayUnion(...add), lastUpdated: now })
+            .catch(() => setDoc(doc(db, 'metadata', 'item_filters'), { posters: { brands: add }, lastUpdated: now }, { merge: true }));
+        toast(`${add.length} theme${add.length === 1 ? '' : 's'} added. Tick them on each poster.`, 'success');
+    } catch (e) { toast('Could not add themes: ' + e.message, 'error'); }
+};
 
 function openModal() {
     document.getElementById('createModalOverlay').classList.add('open');

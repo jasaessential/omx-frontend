@@ -2305,3 +2305,37 @@ img{display:block;max-width:100%}
 /* ── Services grid: 5 cards (Xerox + 4 categories) — 3 per row on phones, one row from tablet up ── */
 .services-grid { grid-template-columns: repeat(3, 1fr); }
 @media (min-width: 600px) { .services-grid { grid-template-columns: repeat(5, 1fr); } }
+
+/* ═══════════════════════════════════════════════
+   HOME — COMPANY DETAILS FOOTER
+   ═══════════════════════════════════════════════ */
+.site-footer {
+    margin: 28px 0 0; padding: 22px 18px 18px; border-radius: 20px;
+    background: var(--bg-white); border: 1px solid var(--border); color: var(--txt2);
+}
+.sf-brand { display: flex; align-items: center; gap: 12px; }
+.sf-brand img { width: 40px; height: 40px; border-radius: 12px; }
+.sf-brand b { display: block; font-size: 1rem; font-weight: 800; color: var(--txt1); }
+.sf-brand small { font-size: .72rem; font-weight: 600; color: var(--txt3); }
+.sf-about { margin: 12px 0 16px; font-size: .78rem; line-height: 1.55; }
+.sf-contact { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.sf-contact a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px;
+    background: var(--bg); color: var(--txt1); text-decoration: none; min-width: 0;
+}
+.sf-contact a > i { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--primary-light, #deeeff); color: var(--primary); font-size: .9rem; }
+.sf-contact a > i.fa-whatsapp { background: #dcfce7; color: #16a34a; font-size: 1.1rem; }
+.sf-contact span { display: flex; flex-direction: column; min-width: 0; }
+.sf-contact b { font-size: .8rem; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-contact small { font-size: .68rem; font-weight: 600; color: var(--txt3); }
+.sf-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 16px; }
+.sf-links h3 { margin: 0 0 8px; font-size: .74rem; font-weight: 800; color: var(--txt1); text-transform: uppercase; letter-spacing: .5px; }
+.sf-links a { display: block; padding: 4px 0; font-size: .76rem; font-weight: 600; color: var(--txt2); text-decoration: none; }
+.sf-links a:hover { color: var(--primary); }
+.sf-pay { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding-top: 14px; border-top: 1px solid var(--border); font-size: .74rem; font-weight: 700; }
+.sf-pay > span:first-child i { color: #16a34a; margin-right: 4px; }
+.sf-pay-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sf-pay-chips em { font-style: normal; font-size: .66rem; font-weight: 700; padding: 3px 8px; border-radius: 50px; background: var(--bg); color: var(--txt2); }
+.sf-copy { margin-top: 12px; font-size: .68rem; font-weight: 600; color: var(--txt3); text-align: center; }
+@media (max-width: 380px) { .sf-links { grid-template-columns: 1fr 1fr; } }

@@ -118,6 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const param  = params.get('cat');
     const search = params.get('search') || '';
     if (param && CATEGORIES[param]) activeCategory = param;
+    /* ?theme= opens a Wall Posters sub-category */
+    const theme = params.get('theme');
+    if (theme && activeCategory === 'posters') { activeFilters.theme = new Set([theme]); renderChips(); updateFilterBadge(); }
 
     /* Wire search input */
     const input    = document.getElementById('searchInput');
@@ -162,6 +165,7 @@ window.switchCategory = function (cat) {
     /* Update URL without reload */
     const url = new URL(window.location);
     url.searchParams.set('cat', cat);
+    url.searchParams.delete('theme');
     window.history.replaceState({}, '', url);
 };
 
@@ -170,7 +174,66 @@ function activateCategoryTab(cat) {
         t.classList.toggle('active', t.dataset.cat === cat);
     });
     document.querySelectorAll('.cat-custom-card').forEach(card => { card.style.display = cat === 'posters' ? '' : 'none'; });
+    document.getElementById('posterSubcats').style.display = 'none';
 }
+
+/* ════════════════════════════════
+   WALL POSTER SUB-CATEGORIES
+   One tile per Theme (set on each poster in Manage Items), with a poster
+   from that theme as its picture. Tapping a tile filters by that theme.
+   ════════════════════════════════ */
+const THEME_ICONS = [
+    [/movie|film|tv|cinema|series/i, 'fa-film'], [/anime|manga|cartoon/i, 'fa-dragon'], [/car|bike|auto|motor/i, 'fa-car-side'],
+    [/sport|cricket|football/i, 'fa-futbol'], [/music|band|song/i, 'fa-music'], [/quote|motivat|inspir/i, 'fa-quote-left'],
+    [/aesthetic|minimal|abstract|art/i, 'fa-palette'], [/nature|travel|landscape/i, 'fa-mountain-sun'], [/gam/i, 'fa-gamepad'],
+    [/spirit|god|devotion|relig/i, 'fa-om'],
+];
+const themeIcon = t => (THEME_ICONS.find(([re]) => re.test(t)) || [, 'fa-image'])[1];
+const htmlEsc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function renderSubcats() {
+    const el = document.getElementById('posterSubcats');
+    if (activeCategory !== 'posters') { el.style.display = 'none'; return; }
+    const themes = new Map();   // theme → { count, img }
+    allItems.forEach(item => {
+        if (item.customUpload) return;
+        const img = item.images?.find(i => i.isPrimary)?.url || item.images?.[0]?.url || item.img || '';
+        (item.brands || []).forEach(t => {
+            const v = themes.get(t) || { count: 0, img: '' };
+            v.count++;
+            if (!v.img && img) v.img = img;
+            themes.set(t, v);
+        });
+    });
+    if (themes.size < 2) { el.style.display = 'none'; return; }
+    const sel = activeFilters.theme?.size === 1 ? [...activeFilters.theme][0] : '';
+    const tile = (t, label, pic, count) => `
+        <button type="button" class="cat-subcat${t === sel ? ' active' : ''}" data-subcat="${htmlEsc(t)}">
+            <span class="cat-subcat-pic">${pic}</span>
+            <span class="cat-subcat-name">${htmlEsc(label)}</span>
+            ${count != null ? `<span class="cat-subcat-count">${count}</span>` : ''}
+        </button>`;
+    el.innerHTML = `<div class="cat-subcats-title">Shop by theme</div><div class="cat-subcats-row">`
+        + tile('', 'All posters', '<i class="fa-solid fa-border-all"></i>', null)
+        + [...themes.entries()].sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0])).map(([t, v]) =>
+            tile(t, t, v.img ? `<img src="${htmlEsc(v.img)}" alt="" loading="lazy">` : `<i class="fa-solid ${themeIcon(t)}"></i>`, v.count)).join('')
+        + '</div>';
+    el.style.display = '';
+}
+
+document.addEventListener('click', e => {
+    const b = e.target.closest('#posterSubcats [data-subcat]');
+    if (!b) return;
+    const t = b.dataset.subcat;
+    if (t) activeFilters.theme = new Set([t]); else delete activeFilters.theme;
+    renderChips();
+    updateFilterBadge();
+    applyAndRender();
+    const url = new URL(window.location);
+    if (t) url.searchParams.set('theme', t); else url.searchParams.delete('theme');
+    window.history.replaceState({}, '', url);
+    b.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+});
 
 /* ════════════════════════════════
    DATA LOADING
@@ -500,6 +563,7 @@ window.clearSearch = function () {
    ════════════════════════════════ */
 function applyAndRender() {
     const catCfg  = CATEGORIES[activeCategory];
+    renderSubcats();
     let   items   = [...allItems];
 
     /* Search */
@@ -614,8 +678,11 @@ function buildCard(item, catCfg) {
            <i class="${catCfg.icon} prod-no-img" style="display:none;"></i>`
         : `<i class="${catCfg.icon} prod-no-img"></i>`;
 
-    /* Subtitle: brand / author / type */
-    const sub = (item.brands?.[0]) || (item.authors?.[0])
+    /* Subtitle: brand / author / type — wall posters: theme · every size on offer */
+    const posterSizes = activeCategory === 'posters' ? (item.types || []).filter(t => item.sizePrices?.[t]) : [];
+    const sub = posterSizes.length
+        ? htmlEsc([item.brands?.[0], posterSizes.join(', ')].filter(Boolean).join(' · '))
+        : (item.brands?.[0]) || (item.authors?.[0])
         || (item.categories?.[0]) || (item.types?.[0])
         || (item.type || catCfg.label);
 

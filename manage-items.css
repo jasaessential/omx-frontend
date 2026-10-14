@@ -421,3 +421,31 @@
 }
 .mi-nav-item i { font-size: 1.1rem; }
 .mi-nav-item.active, .mi-nav-item:hover { color: var(--primary); }
+
+/* ── Wall posters: Mixed / custom sizes for one poster ── */
+.mi-own-sizes { display: flex; gap: 6px; margin-top: 8px; }
+.mi-own-sizes .mi-input { flex: 1; min-width: 0; }
+.mi-chip-own span { border-style: dashed; }
+#fOwnSizesHint { display: block; margin: 6px 0 4px; }
+
+/* ── Wall posters: standard prices + suggested themes ── */
+.mi-poster-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin: 0 0 14px; }
+.mi-poster-tool {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; text-align: left;
+    border: 1.5px solid var(--border); background: var(--bg-white); color: var(--txt1); font-family: inherit; cursor: pointer;
+}
+.mi-poster-tool:hover { border-color: #ec4899; }
+.mi-poster-tool > i:first-child { color: #ec4899; font-size: 1.05rem; width: 22px; text-align: center; }
+.mi-poster-tool > i:last-child { color: var(--txt3); font-size: .75rem; }
+.mi-poster-tool span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mi-poster-tool b { font-size: .82rem; font-weight: 800; }
+.mi-poster-tool small { font-size: .7rem; color: var(--txt3); font-weight: 600; }
+.mi-std-row { display: grid; grid-template-columns: 70px 1fr 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.mi-std-row b { font-size: .82rem; font-weight: 800; }
+.mi-std-row label { display: flex; align-items: center; gap: 4px; font-size: .7rem; font-weight: 700; color: var(--txt2); }
+.mi-std-save { width: 100%; justify-content: center; margin-top: 6px; height: 42px; }
+.mi-std-apply { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.mi-std-apply b { font-size: .8rem; font-weight: 800; }
+.mi-std-apply label { display: flex; align-items: center; gap: 8px; font-size: .76rem; font-weight: 600; color: var(--txt2); }
+.mi-std-apply .mi-btn-dark { height: 42px; justify-content: center; }
+.mi-link-btn { border: none; background: none; color: var(--primary); font-family: inherit; font-size: .72rem; font-weight: 800; cursor: pointer; padding: 2px 0; }

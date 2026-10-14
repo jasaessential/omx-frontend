@@ -27,6 +27,7 @@ const orderId = new URLSearchParams(window.location.search).get('orderId');
 let currentOrder    = null;
 let xeroxMeta       = { paper: [], binding: [], lamination: [] };
 let _cachedProfile  = null;
+const productDocs   = new Map();   // item id → items/{id} data (null = not found), for product details
 
 /* ── STATUS MAP ── */
 const STATUS_MAP = {
@@ -257,7 +258,25 @@ function listenToOrder() {
         }
 
         render();
+        loadProductDocs();
     }, err => { console.error('[AdminOrderDetails] snap:', err); showError(); });
+}
+
+/* ── Catalog docs of the ordered products (brand, type, description…) ── */
+const CUSTOM_BASE_IDS = new Set(['custom-poster', 'wall-poster', 'poster-pack']);
+const baseIdOf = item => item.baseId || String(item.id || '').split('__')[0];
+async function loadProductDocs() {
+    if (!currentOrder || currentOrder.type === 'xerox') return;
+    const ids = [...new Set((currentOrder.items || []).map(baseIdOf))]
+        .filter(id => id && !CUSTOM_BASE_IDS.has(id) && !productDocs.has(id));
+    if (!ids.length) return;
+    await Promise.all(ids.map(async id => {
+        try {
+            const snap = await getDoc(doc(db, 'items', id));
+            productDocs.set(id, snap.exists() ? snap.data() : null);
+        } catch (_) { productDocs.set(id, null); }
+    }));
+    render();
 }
 
 /* ── Derive effective status from item statuses ── */
@@ -522,11 +541,72 @@ function buildDocCard(d, idx) {
 </div>`;
 }
 
+/* ── Product details table (everything we know about the ordered product) ── */
+const CAT_LABELS  = { stationary: 'Stationary', books: 'Books', electronic: 'Kits', posters: 'Wall Posters' };
+const SIZE_LABELS = { A5: 'A5', A4: 'A4', A3: 'A3', P13: '13×19"' };
+const sizeText = k => SIZE_LABELS[k] || String(k || '');
+const rupees = n => `₹${(Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const joinList = v => (Array.isArray(v) ? v.filter(Boolean).join(', ') : v || '');
+
+function productDetails(item) {
+    const baseId = baseIdOf(item);
+    const custom = CUSTOM_BASE_IDS.has(baseId);
+    const d      = productDocs.get(baseId) || {};
+    const cat    = item.category || d.category || '';
+    const qty    = item.qty || 1;
+    const price  = Number(item.price) || 0;
+    const mrp    = Number(item.originalPrice) || price;
+    const size   = item.size || (!item.wallPoster ? String(item.id || '').split('__')[1] : '') || '';
+    const isPoster = cat === 'posters';
+    const fit = item.customLayout;
+    const rows = [
+        ['Product ID', custom
+            ? esc(item.id || baseId)
+            : `<a href="item-details.html?id=${encodeURIComponent(baseId)}" target="_blank" rel="noopener" style="color:var(--primary);">${esc(baseId)} <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:.6rem;"></i></a>`],
+        cat ? ['Category', esc(CAT_LABELS[cat] || cat)] : null,
+        item.wallPoster === 'wall' ? ['Product', 'Build Your Wall'] : null,
+        item.wallPoster === 'pack' ? ['Product', 'Mix &amp; Match Poster Pack'] : null,
+        item.customPoster ? ['Product', 'Customized poster (customer picture)'] : null,
+        cat === 'books'
+            ? (joinList(d.authors) ? ['Author', esc(joinList(d.authors))] : null)
+            : (joinList(d.brands) ? [isPoster ? 'Theme' : 'Brand', esc(joinList(d.brands))] : null),
+        cat === 'books'
+            ? (joinList(d.categories) ? ['Book category', esc(joinList(d.categories))] : null)
+            : (!isPoster && joinList(d.types) ? ['Type', esc(joinList(d.types))] : null),
+        size ? ['Size ordered', `<b>${esc(sizeText(size))}</b>`] : null,
+        isPoster && !size && joinList(d.types) ? ['Sizes offered', esc(joinList(d.types))] : null,
+        item.gsm ? ['Paper', `${esc(item.gsm)} GSM`] : null,
+        item.wallLayout ? ['Wall layout', esc(item.wallLayout)] : null,
+        item.wallPoster === 'pack' ? ['Pack', `${esc(item.packCount || item.wallSlots?.length || '')} posters · ${esc(sizeText(item.packSize))}`] : null,
+        item.arrangement ? ['Arrangement', esc(item.arrangement)] : null,
+        fit ? ['Picture fit', esc(`zoom ${fit.zoom ?? 1}, rotate ${fit.rotate || 0}°${fit.landscape ? ', landscape' : ''}`)] : null,
+        ['MRP', mrp > price ? `<s style="color:var(--txt3);">${rupees(mrp)}</s>` : rupees(mrp)],
+        ['Selling price', `${rupees(price)}${item.discountPercent ? ` <span style="color:#16a34a;">(${esc(item.discountPercent)}% off)</span>` : ''}`],
+        ['Quantity', `×${qty}`],
+        ['Line total', `<b>${rupees(price * qty)}</b>`],
+        mrp > price ? ['Customer saves', `<span style="color:#16a34a;">${rupees((mrp - price) * qty)}</span>`] : null,
+        item.rejectionMessage ? ['Reject reason', esc(item.rejectionMessage)] : null,
+        !custom && productDocs.get(baseId) === null ? ['Catalog', '<span style="color:#dc2626;">Product no longer in the catalog</span>'] : null,
+    ].filter(Boolean).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    const desc = d.description ? `<div class="aod-desc"><b>Description</b>${esc(d.description)}</div>` : '';
+    return `
+    <div class="sod-config-block">
+        <div class="sod-config-title"><i class="fa-solid fa-circle-info"></i> Product Details</div>
+        <table class="sod-config-table">${rows}</table>
+        ${desc}
+    </div>`;
+}
+
+function productImg(d) {
+    const imgs = Array.isArray(d?.images) ? d.images : [];
+    return (imgs.find(i => i?.isPrimary) || imgs[0] || {}).url || '';
+}
+
 /* ── Build product card ── */
 function buildProductCard(item, idx) {
     const qty       = item.qty || 1;
     const lineTotal = (item.price || 0) * qty;
-    const img       = item.img || item.images?.[0]?.url || '';
+    const img       = item.img || item.images?.[0]?.url || productImg(productDocs.get(baseIdOf(item)));
 
     return `
 <div class="sod-item-card" id="aodItem-${idx}">
@@ -558,6 +638,7 @@ function buildProductCard(item, idx) {
         ${item.customNote ? `<div style="margin-top:6px;font-weight:600;color:var(--txt2,#555);"><i class="fa-regular fa-note-sticky"></i> ${esc(item.customNote)}</div>` : ''}
     </div>` : ''}
     ${wallSlotsHtml(item, orderId, { staff: true })}
+    ${productDetails(item)}
     ${buildItemTracker(item.status || 'pending', item.rejectionMessage)}
     ${buildItemActions(item.status || 'pending', idx)}
 </div>`;

@@ -97,6 +97,20 @@
             </div>
         </div>
 
+        <!-- ── Wall posters: standard prices + sub-categories ── -->
+        <div class="mi-poster-tools" id="posterTools" style="display:none;">
+            <button class="mi-poster-tool" onclick="openPriceSheet()">
+                <i class="fa-solid fa-tags"></i>
+                <span><b>Standard prices</b><small id="stdPriceSummary">Set once per size — new posters fill in automatically</small></span>
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="mi-poster-tool" onclick="addSuggestedThemes()">
+                <i class="fa-solid fa-folder-tree"></i>
+                <span><b>Add suggested themes</b><small>Sub-categories shoppers browse: Movies &amp; TV, Anime, Cars &amp; Bikes…</small></span>
+                <i class="fa-solid fa-plus"></i>
+            </button>
+        </div>
+
         <!-- ── Item count header ── -->
         <div class="mi-list-header">
             <span class="mi-list-title" id="listTitle">STATIONARY PRODUCTS</span>
@@ -131,6 +145,27 @@
     </div>
     <div class="mi-sheet-body" id="attrSheetBody">
         <div class="mi-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div>
+    </div>
+</div>
+
+<!-- ════ STANDARD POSTER PRICES SHEET ════ -->
+<div class="mi-sheet-overlay" id="priceSheetOverlay" onclick="closePriceSheet()"></div>
+<div class="mi-sheet" id="priceSheet">
+    <div class="mi-sheet-header">
+        <span class="mi-sheet-title">Standard poster prices</span>
+        <button class="mi-sheet-close" onclick="closePriceSheet()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mi-sheet-body">
+        <p class="mi-hint" style="margin:0 0 10px;">One price per size. New posters start with the <b>Default</b> sizes and these prices
+            filled in, so you only add the name and picture. Sizes come from the <b>Size</b> list above.</p>
+        <div id="stdPriceRows"><div class="mi-spinner"><i class="fa-solid fa-spinner fa-spin"></i></div></div>
+        <button class="mi-btn-primary mi-std-save" onclick="saveStdPrices(false)"><i class="fa-solid fa-check"></i> Save prices</button>
+        <div class="mi-std-apply">
+            <b>Update existing posters</b>
+            <label><input type="checkbox" id="stdAddDefaults"> Also add the Default sizes to posters that don't have them</label>
+            <label><input type="checkbox" id="stdIncludeCustom"> Include customer-photo posters</label>
+            <button class="mi-btn-dark" onclick="saveStdPrices(true)"><i class="fa-solid fa-wand-magic-sparkles"></i> Save &amp; apply to all posters</button>
+        </div>
     </div>
 </div>
 
@@ -175,11 +210,21 @@
                     <div class="mi-chips-box" id="fTypesBox">
                         <span class="mi-chips-empty">Loading…</span>
                     </div>
+                    <!-- Wall posters: sizes for this poster only -->
+                    <div class="mi-own-sizes" id="fOwnSizes" style="display:none;">
+                        <button type="button" class="mi-btn-ghost" onclick="addPosterSize('Mixed')"><i class="fa-solid fa-shuffle"></i> Mixed</button>
+                        <input type="text" class="mi-input" id="fCustomSize" maxlength="20" placeholder="Custom size, e.g. 24x36">
+                        <button type="button" class="mi-btn-dark" onclick="addPosterSize(document.getElementById('fCustomSize').value)"><i class="fa-solid fa-plus"></i> Add</button>
+                    </div>
+                    <span class="mi-hint" id="fOwnSizesHint" style="display:none;">Mixed and custom sizes are for this poster only — set their price below.</span>
                 </div>
 
                 <!-- Per-size pricing (wall posters) -->
                 <div class="mi-field" id="fSizePricesWrap" style="display:none;">
-                    <label class="mi-label">Price per Size (₹)</label>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                        <label class="mi-label">Price per Size (₹)</label>
+                        <button type="button" class="mi-link-btn" id="fUseStdBtn" onclick="useStdPrices()"><i class="fa-solid fa-tags"></i> Use standard prices</button>
+                    </div>
                     <div id="fSizePrices"></div>
                 </div>
 
@@ -253,6 +298,6 @@
 <!-- ════ SCRIPTS ════ -->
 <script src="app.js"></script>
 <script type="module" src="auth-header.js"></script>
-<script type="module" src="manage-items.js?v=20261006a"></script>
+<script type="module" src="manage-items.js?v=20261014b"></script>
 </body>
 </html>

@@ -453,3 +453,7 @@ tr.kv-total td { border-top: 1.5px solid var(--border2); }
 
 
 
+
+/* Product details: catalog description */
+.aod-desc { margin-top: 8px; font-size: .74rem; line-height: 1.45; color: var(--txt2); white-space: pre-line; max-height: 9em; overflow: auto; }
+.aod-desc b { display: block; font-size: .7rem; color: var(--txt3); margin-bottom: 2px; }
