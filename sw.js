@@ -6,8 +6,8 @@
  * a change to this file shows the "Update" card (app.js).
  */
 
-const CACHE_NAME    = 'jasa-v2-shell-v6';
-const RUNTIME_CACHE = 'jasa-v2-runtime-v6';
+const CACHE_NAME    = 'jasa-v2-shell-v7';
+const RUNTIME_CACHE = 'jasa-v2-runtime-v7';
 
 const SHELL_FILES = [
     'offline.html',
