@@ -66,8 +66,11 @@ body {
     margin-bottom: 20px;
     line-height: 1;
 }
-/* reuse index brand styles already defined in styles.css:
-   .brand-print, .brand-badge, .brand-xerox */
+.auth-brand .brand-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+}
 
 /* ── Titles ── */
 .auth-titles {

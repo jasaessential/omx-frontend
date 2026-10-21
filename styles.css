@@ -119,59 +119,18 @@ img{display:block;max-width:100%}
 }
 .hamburger:hover{background:var(--primary-light);color:var(--primary)}
 
-/* ── Brand: Print [my] xerox — all on one line ── */
+/* ── Brand: app logo ── */
 .header-brand{
     display:inline-flex;
     align-items:center;
-    gap:5px;
-    white-space:nowrap;          /* never wrap */
     line-height:1;
 }
 
-.brand-print{
-    font-size:1.25rem;
-    font-weight:800;
-    color:var(--txt1);
-    letter-spacing:-.3px;
-}
-
-/* ── "my" badge — fixed, no animation ── */
-.brand-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px; height: 28px;
-    flex-shrink: 0;
-    cursor: default;
-}
-
-/* Static inner card — no flip */
-.brand-badge-inner {
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    background: var(--primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Show only the front face with "my" text */
-.brand-badge-front {
-    color: #fff;
-    font-size: .72rem;
-    font-weight: 800;
-}
-
-/* Hide the back face (logo) entirely */
-.brand-badge-back {
-    display: none;
-}
-
-.brand-xerox{
-    font-size:1.25rem;
-    font-weight:800;
-    color:var(--primary);
-    letter-spacing:-.3px;
+.brand-logo{
+    display:block;
+    width:36px;height:36px;
+    border-radius:10px;
+    flex-shrink:0;
 }
 
 /* ── right group ── */
