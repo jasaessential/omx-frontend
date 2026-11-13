@@ -23,7 +23,7 @@ async function loadHomeBanners() {
 
     // 1. Try fast worker edge-cache first
     try {
-        const res = await fetch(`${WORKER_URL}/api/banners`);
+        const res = await fetch(`${WORKER_URL}/api/banners`, { cache: 'no-store' });
         if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data.banners) && data.banners.length > 0) {
@@ -108,7 +108,7 @@ async function loadCategoryImages() {
 
     // 1. Try worker
     try {
-        const res = await fetch(`${WORKER_URL}/api/site-config`);
+        const res = await fetch(`${WORKER_URL}/api/site-config`, { cache: 'no-store' });
         if (res.ok) {
             const data = await res.json();
             if (data.config && Object.keys(data.config).length) {

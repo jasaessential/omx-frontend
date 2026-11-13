@@ -11,6 +11,8 @@ const LEAFLET_JS  = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leafle
 const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
 const NOMINATIM   = 'https://nominatim.openstreetmap.org';
 const INDIA       = { lat: 20.5937, lng: 78.9629 };
+/* A browser fix less precise than this (metres) is treated as approximate */
+export const APPROX_LOCATION_M = 1500;
 
 /* ── distance ── */
 export function haversineKm(a, b) {
@@ -20,9 +22,31 @@ export function haversineKm(a, b) {
     return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
+/* A shop's (or any record's) position as numbers, or null when it has none.
+   Reads lat/lng (the field names manage-shops.js saves), and also latitude/longitude
+   and a nested location/geo/coords object (incl. a serialised Firestore GeoPoint),
+   numbers or numeric strings. Rejects empty values, out-of-range values and the
+   0,0 placeholder. All our shops are in India (lat 6–37, lng 68–98): a pair that
+   only fits India the other way round was saved swapped, so it is swapped back. */
+const _num = v => (v === null || v === undefined || v === '' || typeof v === 'boolean') ? NaN : Number(v);
+export function shopCoords(s) {
+    if (!s || typeof s !== 'object') return null;
+    const srcs = [s, s.location, s.geo, s.coords, s.position, s.geoPoint].filter(o => o && typeof o === 'object');
+    for (const o of srcs) {
+        let lat = _num(o.lat ?? o.latitude ?? o._latitude);
+        let lng = _num(o.lng ?? o.lon ?? o.longitude ?? o._longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+        if (lat === 0 && lng === 0) continue;
+        const inIndia = (a, b) => a >= 6 && a <= 37.5 && b >= 68 && b <= 98;
+        if (!inIndia(lat, lng) && inIndia(lng, lat)) [lat, lng] = [lng, lat];
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+        return { lat, lng };
+    }
+    return null;
+}
+
 export function hasCoords(s) {
-    return !!s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))
-        && s.lat !== null && s.lng !== null && s.lat !== '' && s.lng !== '';
+    return !!shopCoords(s);
 }
 
 /* ── lazy Leaflet loader ── */
@@ -45,16 +69,19 @@ export function loadLeaflet() {
 }
 
 /* ── geolocation + Nominatim ── */
+/* Resolves { lat, lng, accuracy } — accuracy is the browser's radius in metres.
+   Laptops without GPS locate by Wi-Fi / IP, which can be kilometres off, so
+   callers should warn when accuracy is large. maximumAge 0: never reuse an old fix. */
 export function getCurrentPosition() {
     return new Promise((resolve, reject) => {
         if (!('geolocation' in navigator)) return reject(new Error('Your browser cannot share its location. Pick a point on the map instead.'));
         navigator.geolocation.getCurrentPosition(
-            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Number(p.coords.accuracy) || 0 }),
             err => reject(new Error(
                 err.code === err.PERMISSION_DENIED
                     ? 'Location permission is blocked. Allow it in your browser settings, or pick a point on the map.'
                     : 'Could not get your location. Pick a point on the map instead.')),
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
     });
 }
@@ -205,7 +232,11 @@ export async function createMapPicker(host, opts = {}) {
 
     async function locate() {
         locateBtn.disabled = true;
-        try { await pick(await getCurrentPosition(), null, 17); }
+        try {
+            const p = await getCurrentPosition();
+            await pick({ lat: p.lat, lng: p.lng }, null, 17);
+            if (p.accuracy > APPROX_LOCATION_M) setHint(`Your device only knows roughly where you are (within about ${(p.accuracy / 1000).toFixed(1)} km). Drag the pin to your exact spot.`, true);
+        }
         catch (e) { setHint(e.message, true); }
         finally { locateBtn.disabled = false; }
     }
@@ -238,9 +269,10 @@ export async function createMapPicker(host, opts = {}) {
     function setShops(list = []) {
         shopLayer.clearLayers();
         list.forEach(s => {
-            if (!hasCoords(s)) return;
+            const c = shopCoords(s);
+            if (!c) return;
             const icon = L.divIcon({ className: '', html: `<div class="gm-shop${s.selected ? ' sel' : ''}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
-            L.marker([Number(s.lat), Number(s.lng)], { icon, title: s.name || '' }).bindTooltip(esc(s.name || ''), { direction: 'top' }).addTo(shopLayer);
+            L.marker([c.lat, c.lng], { icon, title: s.name || '' }).bindTooltip(esc(s.name || ''), { direction: 'top' }).addTo(shopLayer);
         });
     }
 

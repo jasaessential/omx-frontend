@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
    - KV miss → worker reads Firestore automatically
    ═══════════════════════════════════════════════ */
 const LS_KEY        = 'jasa_payment_config';
-const CACHE_TTL_MS  = 12 * 60 * 60 * 1000;   // 12 hours
+const CACHE_TTL_MS  = 0;   // caching disabled for now: always fetch fresh
 
 export async function getPaymentConfig() {
 
@@ -457,9 +457,6 @@ export async function getPaymentConfig() {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const fresh = await resp.json();
 
-        // Write to localStorage with timestamp
-        const toCache = { ...fresh, _cachedAt: Date.now() };
-        try { localStorage.setItem(LS_KEY, JSON.stringify(toCache)); } catch (_) {}
 
         return fresh;
     } catch (fetchErr) {

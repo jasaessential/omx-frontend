@@ -19,7 +19,7 @@ import { doc, getDoc }
 import { bootstrapReferral } from './referral-bootstrap.js';
 
 /* ── Cache TTL: only re-fetch Firestore if older than 5 minutes ── */
-const USER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const USER_CACHE_TTL = 0; // no cache: re-read the profile from Firestore on every load (stored copy is only for the instant, flash-free header)
 
 /* ── Color palette ── */
 const COLORS = [

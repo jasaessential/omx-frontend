@@ -9,7 +9,7 @@
 import { auth, db } from './firebase-init.js';
 import { WORKER_URL, PAYMENT_SERVER_URL } from './env-config.js';
 import { getUploadTarget } from './secure-files.js';   // signed upload / view links
-import { wallSlotsHtml } from './wall-order-view.js';
+import { wallSlotsHtml, secureImgHtml } from './wall-order-view.js';
 
 /* Customer changes to a placed order go through the server, which recomputes
    the totals (POST /api/orders/cancel-item and /attach-file). */
@@ -186,6 +186,25 @@ async function loadXeroxMeta() {
 
 let shopDataMap = {};
 
+/* Catalog docs of ordered products: picture fallback for lines saved without
+   one (older carts stored `imageUrl`, some lines none at all). items/ is public. */
+const CUSTOM_BASE_IDS = new Set(['custom-poster', 'wall-poster', 'poster-pack']);
+const productDocs = new Map();   // baseId → item data | null
+const baseIdOf = item => item.baseId || String(item.id || '').split('__')[0];
+async function loadProductDocs() {
+    if (!currentOrder || currentOrder.type === 'xerox') return;
+    const ids = [...new Set((currentOrder.items || []).filter(i => !lineImg(i)).map(baseIdOf))]
+        .filter(id => id && !CUSTOM_BASE_IDS.has(id) && !productDocs.has(id));
+    if (!ids.length) return;
+    await Promise.all(ids.map(async id => {
+        try {
+            const snap = await getDoc(doc(db, 'items', id));
+            productDocs.set(id, snap.exists() ? snap.data() : null);
+        } catch (_) { productDocs.set(id, null); }
+    }));
+    render();
+}
+
 async function loadOrder() {
     try {
         const snap = await getDoc(doc(db,'orders', orderId));
@@ -198,6 +217,7 @@ async function loadOrder() {
             } catch (_) {}
         }
         render();
+        loadProductDocs();
     } catch(e) { console.error('Order load error:',e); showError(); return; }
 
     // Real-time: order data changes
@@ -211,7 +231,8 @@ async function loadOrder() {
     // Real-time: status changes
     onSnapshot(doc(db,'order_status', orderId), snap => {
         if (snap.exists() && currentOrder) {
-            const { status } = snap.data();
+            const { status, updatedAt } = snap.data();
+            if (updatedAt) currentOrder._statusUpdatedAt = updatedAt;
             if (currentOrder.status !== status) {
                 const prev = currentOrder.status;
                 currentOrder.status = status;
@@ -240,57 +261,149 @@ window.confirmOpenMap = function(shopName, mapUrl) {
     });
 };
 
+/* ════ RENDER HELPERS ════ */
+/* HTML-escape (esc() above is for strings inside onclick='…' handlers) */
+function h(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+const num    = v => Number(v) || 0;
+const rupees = n => `₹${num(n).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const safeOrderId = () => String(orderId || '').replace(/[^A-Za-z0-9_-]/g, '');
+
+function fmtDate(raw, withTime = true) {
+    if (!raw) return '';
+    try {
+        const d = raw.toDate ? raw.toDate() : raw.seconds != null ? new Date(raw.seconds * 1000) : new Date(raw);
+        if (isNaN(d)) return '';
+        return d.toLocaleString('en-IN', withTime
+            ? { weekday:'short', day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true }
+            : { day:'2-digit', month:'short', year:'numeric' });
+    } catch (_) { return ''; }
+}
+
+/** Primary picture of a catalog item / order line (all the field names in use). */
+function primaryOf(obj) {
+    if (!obj) return '';
+    const imgs = Array.isArray(obj.images) ? obj.images : [];
+    const fromList = (imgs.find(i => i && i.isPrimary) || imgs[0] || {});
+    return obj.img || obj.imageUrl || obj.image || obj.thumbnail
+        || (typeof fromList === 'string' ? fromList : fromList.url) || '';
+}
+/** Picture saved on the order line itself (public catalog / design image). */
+function lineImg(item) {
+    return primaryOf(item)
+        || (Array.isArray(item.wallSlots) ? (item.wallSlots.find(s => s && s.img) || {}).img : '')
+        || '';
+}
+
+const CAT_LABELS  = { stationary: 'Stationery', stationery: 'Stationery', books: 'Books', electronic: 'Kits & Electronics', posters: 'Wall Posters' };
+const SIZE_LABELS = { A5: 'A5', A4: 'A4', A3: 'A3', P13: '13×19"' };
+const ARRANGEMENTS = { grid: 'Grid', zigzag: 'Zigzag', cascade: 'Cascade', gallery: 'Gallery' };
+const sizeText = k => SIZE_LABELS[k] || String(k || '');
+
+/* Payment: method + state as the customer should read them */
+function paymentInfo(o, isPickup = false) {
+    const onDelivery = isPickup ? 'Pay at Pickup' : 'Pay on Delivery';
+    const m = String(o.paymentMethod || '').toLowerCase();
+    const s = String(o.paymentStatus || '').toLowerCase();
+    const paid = num(o.amountPaid), bal = num(o.balanceDue), total = num(o.totalAmount);
+    const pill = (bg, color, icon, text) => `<span class="od-status-pill" style="background:${bg};color:${color};"><i class="${icon}"></i> ${text}</span>`;
+    if (m === 'cod' || s === 'cod') {
+        return { mode: 'Cash on Delivery', pill: pill('#fef3c7', '#d97706', 'fa-solid fa-money-bill-wave',
+            String(o.status || '').toLowerCase() === 'delivered' ? 'Cash on Delivery' : onDelivery) };
+    }
+    if (m === 'partial' || s === 'partial_paid') {
+        if (s === 'partial_paid' || paid > 0) {
+            return { mode: 'Part payment (deposit online, rest on delivery)', partial: true,
+                pill: pill('#e0f2fe', '#0284c7', 'fa-solid fa-percent', `Deposit Paid · ${rupees(paid)} paid, ${rupees(bal || Math.max(0, total - paid))} due`) };
+        }
+    }
+    const online = m === 'partial' ? 'Part payment (deposit online)' : 'Online (Razorpay)';
+    if (s === 'paid')      return { mode: online, pill: pill('#dcfce7', '#16a34a', 'fa-solid fa-circle-check', 'Paid Online') };
+    if (s === 'failed')    return { mode: online, pill: pill('#fee2e2', '#dc2626', 'fa-solid fa-circle-xmark', 'Payment Failed') };
+    if (s === 'abandoned') return { mode: online, pill: pill('#f3f4f6', '#6b7280', 'fa-solid fa-ban', 'Payment Not Completed') };
+    if (s === 'refunded')  return { mode: online, pill: pill('#ede9fe', '#7c3aed', 'fa-solid fa-rotate-left', 'Refunded') };
+    if (m === 'razorpay' || m === 'partial') return { mode: online, pill: pill('#fef3c7', '#d97706', 'fa-solid fa-hourglass-half', 'Payment Pending') };
+    if (m === 'paid') return { mode: 'Online', pill: pill('#dcfce7', '#16a34a', 'fa-solid fa-circle-check', 'Paid') };
+    return { mode: o.paymentMethod ? String(o.paymentMethod) : 'Cash on Delivery',
+             pill: pill('#fef3c7', '#d97706', 'fa-solid fa-money-bill-wave', onDelivery) };
+}
+
+/* Order-level status timeline: Placed → Confirmed → Out for delivery → Delivered */
+function buildOrderTimeline(o, statusKey) {
+    const placed = fmtDate(o.createdAt);
+    const updated = fmtDate(o._statusUpdatedAt);
+    if (statusKey === 'cancelled' || statusKey === 'rejected') {
+        const when = fmtDate(o.cancelledAt) || updated;
+        const abandoned = String(o.paymentStatus || '').toLowerCase() === 'abandoned';
+        return `
+        <div class="od-timeline-cancel">
+            <i class="fa-solid fa-circle-xmark"></i>
+            <div>
+                <div class="od-tl-cancel-title">Order ${statusKey === 'rejected' ? 'rejected' : 'cancelled'}</div>
+                <div class="od-tl-cancel-sub">${abandoned ? 'Payment was not completed, so the order was cancelled. ' : ''}${placed ? `Placed ${h(placed)}` : ''}${when ? ` · Cancelled ${h(when)}` : ''}</div>
+            </div>
+        </div>`;
+    }
+    const step = { pending: 1, confirmed: 2, accepted: 2, processing: 2, 'out for delivery': 3, delivered: 4 }[statusKey] || 1;
+    const isPickup = o._isPickup;
+    const steps = [
+        { icon: 'fa-solid fa-receipt',      label: 'Placed',    sub: placed },
+        { icon: 'fa-solid fa-circle-check', label: 'Confirmed', sub: '' },
+        { icon: isPickup ? 'fa-solid fa-store' : 'fa-solid fa-truck-fast', label: isPickup ? 'Ready' : 'On the way', sub: '' },
+        { icon: 'fa-solid fa-house-circle-check', label: isPickup ? 'Picked up' : 'Delivered', sub: '' },
+    ];
+    if (updated && step > 1) steps[step - 1].sub = updated;
+    return `
+    <ol class="od-timeline">
+        ${steps.map((s, i) => {
+            const n = i + 1;
+            const cls = n < step ? 'is-done' : n === step ? 'is-current' : '';
+            return `<li class="od-tl-step ${cls}">
+                <span class="od-tl-dot"><i class="${s.icon}"></i></span>
+                <span class="od-tl-label">${s.label}</span>
+                ${s.sub ? `<span class="od-tl-sub">${h(s.sub)}</span>` : ''}
+            </li>`;
+        }).join('')}
+    </ol>`;
+}
+
 /* ════ RENDER ════ */
 function render() {
     document.getElementById('odSkeleton').style.display = 'none';
     document.getElementById('odContent').style.display  = 'block';
 
-    const o      = currentOrder;
-    const st     = getStatus(deriveOrderStatus(o));
-    const ordRef = o.groupOrderId || o.id.slice(0,8).toUpperCase();
+    const o        = currentOrder;
+    const statusKey = deriveOrderStatus(o);
+    const st       = getStatus(statusKey);
+    const ordRef   = o.groupOrderId || o.id.slice(0,8).toUpperCase();
+    const isXerox  = o.type === 'xerox';
+    const items    = isXerox ? (o.documents||[]) : (o.items||[]);
+    const active   = items.filter(i => !['cancelled','rejected'].includes(String(i.status||'').toLowerCase()));
 
     document.getElementById('odHeaderSub').textContent = `Order #${ordRef}`;
 
-    let dateStr = '—';
-    try {
-        const d = o.createdAt?.toDate ? o.createdAt.toDate()
-            : new Date((o.createdAt?.seconds||0)*1000);
-        dateStr = d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    } catch(_){}
+    const dateStr = fmtDate(o.createdAt) || '—';
 
     const shopObj   = shopDataMap[o.shopId] || {};
     const shopName  = shopObj.name || o.shopName || 'Shop';
     const shopAddr  = shopObj.address || o.shopAddress || 'Local Center';
     const rawLink   = shopObj.locationLink || o.shopLocationLink || '';
     const mapUrl    = rawLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shopName + ' ' + shopAddr)}`;
+    const toList    = v => (Array.isArray(v) ? v : v ? [v] : []).map(x => String(x).trim()).filter(Boolean);
+    const shopPhone = toList(o.shopContacts?.mobile)[0] || toList(shopObj.mobileNumbers)[0] || toList(shopObj.phone)[0] || '';
 
     const isPickup  = o.fulfillmentType === 'pickup' || o.deliveryMode === 'pickup' || o.isPickup === true || o.orderType === 'pickup' || (o.deliveryFee === 0 && !o.deliveryAddress);
+    o._isPickup = isPickup;
 
-    const addr      = o.deliveryAddress;
-    const addrText  = addr ? `${addr.label?addr.label+' — ':''}${addr.street||''}, ${addr.city||''}${addr.pincode?' — '+addr.pincode:''}` : (isPickup ? 'Self Pickup at Shop' : '—');
+    const addr      = o.deliveryAddress || null;
+    const addrText  = addr
+        ? [addr.label ? `<strong>${h(addr.label)}</strong>` : '', h(addr.street || ''),
+           h([addr.city, addr.state].filter(Boolean).join(', ') + (addr.pincode ? ` — ${addr.pincode}` : ''))]
+            .filter(Boolean).join('<br>')
+        : (isPickup ? 'Self Pickup at Shop' : '—');
 
-    // Payment info
-    const pMethod   = (o.paymentMethod || '').toLowerCase();
-    const pStatus   = (o.paymentStatus || '').toLowerCase();
-    const isPartial = pMethod === 'partial' || pStatus === 'partial_paid' || (o.balanceDue > 0 && o.amountPaid > 0);
-    const isPaid    = pStatus === 'paid' || pMethod === 'paid' || (pMethod === 'razorpay' && pStatus !== 'pending' && !isPartial);
-
-    let payPillHtml = '';
-    if (isPartial) {
-        const paidAmt = o.amountPaid || 0;
-        const balAmt  = o.balanceDue || Math.max(0, (o.totalAmount || 0) - paidAmt);
-        payPillHtml = `<span class="od-status-pill" style="background:#e0f2fe;color:#0284c7;">
-            <i class="fa-solid fa-percent"></i> Partial Paid (₹${paidAmt.toLocaleString('en-IN')} Paid, ₹${balAmt.toLocaleString('en-IN')} Balance)
-        </span>`;
-    } else if (isPaid) {
-        payPillHtml = `<span class="od-status-pill" style="background:#dcfce7;color:#16a34a;">
-            <i class="fa-solid fa-circle-check"></i> Paid Online
-        </span>`;
-    } else {
-        payPillHtml = `<span class="od-status-pill" style="background:#fef3c7;color:#d97706;">
-            <i class="fa-solid fa-money-bill-wave"></i> Cash on Delivery (COD)
-        </span>`;
-    }
+    const pay = paymentInfo(o, isPickup);
 
     const fulPillHtml = isPickup
         ? `<span class="od-status-pill" style="background:#dcfce7;color:#15803d;"><i class="fa-solid fa-store"></i> Pick Myself (Self Pickup)</span>`
@@ -314,56 +427,171 @@ function render() {
             <span class="od-psc-title"><i class="fa-solid fa-store"></i> Self Pickup Center</span>
             <span class="od-psc-badge">Pick Myself</span>
         </div>
-        <div class="od-psc-name">${esc(shopName)}</div>
-        <div class="od-psc-addr"><i class="fa-solid fa-location-dot" style="color:var(--primary);margin-right:4px;"></i> ${esc(shopAddr)}</div>
+        <div class="od-psc-name">${h(shopName)}</div>
+        <div class="od-psc-addr"><i class="fa-solid fa-location-dot" style="color:var(--primary);margin-right:4px;"></i> ${h(shopAddr)}</div>
         ${shopLinkBtn}
     </div>` : '';
 
+    /* Pricing */
+    const subtotal  = o.subtotal != null ? num(o.subtotal)
+        : active.reduce((s, it) => s + (isXerox ? num(it.price) : num(it.price) * (num(it.qty) || 1)), 0);
+    const mrpSaving = isXerox ? 0 : active.reduce((s, it) => {
+        const p = num(it.price), m = num(it.originalPrice);
+        return s + (m > p ? (m - p) * (num(it.qty) || 1) : 0);
+    }, 0);
+    const discount  = num(o.discountAmount);
+    const wallet    = num(o.walletAmount);
+    const fee       = o.deliveryFee != null ? num(o.deliveryFee) : null;
+    const total     = o.totalAmount != null ? num(o.totalAmount) : Math.max(0, subtotal - discount - wallet + (fee || 0));
+    const unitCount = isXerox
+        ? active.reduce((s, d) => s + (num(d.config?.quantity) || 1), 0)
+        : active.reduce((s, it) => s + (num(it.qty) || 1), 0);
+    const lineCount = `${active.length} ${isXerox ? 'document' : 'item'}${active.length === 1 ? '' : 's'}`
+        + (unitCount > active.length ? ` · ${unitCount} ${isXerox ? 'sets' : 'pcs'}` : '');
+    const cancelledCount = items.length - active.length;
+
+    const orderNote = o.notes || o.orderNote || o.note || o.instructions || o.deliveryInstructions || '';
+
     document.getElementById('odSummaryCard').innerHTML = `
     <div class="od-section-title"><i class="fa-solid fa-receipt"></i> Order Summary</div>
+    ${buildOrderTimeline(o, statusKey)}
     <table class="od-kv-table">
         ${kvS('Order Info')}
-        ${kv('Order ID',     `<strong>#${ordRef}</strong>`, 'fa-solid fa-receipt')}
+        ${kv('Order ID',     `<strong>#${h(ordRef)}</strong>`, 'fa-solid fa-receipt')}
+        ${kv('Order Type',   isXerox ? '<span style="font-weight:700;"><i class="fa-solid fa-print" style="color:var(--primary);"></i> Xerox / Print</span>' : '<span style="font-weight:700;"><i class="fa-solid fa-bag-shopping" style="color:#16a34a;"></i> Products</span>', 'fa-solid fa-tag')}
+        ${kv('Placed On',    h(dateStr),                     'fa-regular fa-calendar')}
+        ${kv('Status',       statusPill,                     'fa-solid fa-circle-dot')}
+        ${o._statusUpdatedAt ? kv('Last Update', h(fmtDate(o._statusUpdatedAt)), 'fa-regular fa-clock') : ''}
         ${kv('Fulfillment',  fulPillHtml,                   'fa-solid fa-truck-ramp-box')}
         ${kv('Shop',         isPickup
-            ? `<a href="javascript:void(0)" onclick="confirmOpenMap('${esc(shopName)}', '${esc(mapUrl)}')" style="color:var(--primary);font-weight:700;text-decoration:none;"><i class="fa-solid fa-map-location-dot"></i> ${esc(shopName)} (View Map)</a>`
-            : `<span style="font-weight:700;">${esc(shopName)}</span>`, 'fa-solid fa-store')}
-        ${kv('Date',         dateStr,                        'fa-regular fa-calendar')}
-        ${kv('Payment',      payPillHtml,                    'fa-solid fa-wallet')}
-        ${kv('Status',       statusPill,                     'fa-solid fa-circle-dot')}
-        ${kvS('Pricing')}
-        ${kv('Subtotal',     `₹${(o.subtotal||0).toLocaleString('en-IN')}`,                          'fa-solid fa-file-invoice')}
-        ${Number(o.discountAmount) > 0 ? kv(`Coupon${o.couponCode ? ` (${esc(o.couponCode)})` : ''}`, `<span style="color:#16a34a;font-weight:800;">-₹${Number(o.discountAmount).toLocaleString('en-IN')}</span>`, 'fa-solid fa-ticket') : ''}
-        ${Number(o.walletAmount) > 0 ? kv('Wallet', `<span style="color:#16a34a;font-weight:800;">-₹${Number(o.walletAmount).toLocaleString('en-IN')}</span>`, 'fa-solid fa-wallet') : ''}
-        ${kv('Delivery',    o.deliveryFee != null ? (o.deliveryFee === 0 ? '<span style="color:#16a34a;font-weight:800;">FREE ' + (isPickup?'(Pickup)':'') + '</span>' : `₹${Number(o.deliveryFee).toLocaleString('en-IN')}`) : '—', 'fa-solid fa-truck-fast')}
-        ${isPartial ? kv('Amount Paid', `<strong style="color:#16a34a;">₹${(o.amountPaid||0).toLocaleString('en-IN')}</strong>`, 'fa-solid fa-circle-check') : ''}
-        ${isPartial ? kv('Balance Due', `<strong style="color:#e11d48;">₹${(o.balanceDue||0).toLocaleString('en-IN')}</strong>`, 'fa-solid fa-triangle-exclamation') : ''}
-        ${kv('Total',        `<strong style="color:var(--primary);font-size:1.05rem;">₹${(o.totalAmount || (o.subtotal||0) + (o.deliveryFee||0)).toLocaleString('en-IN')}</strong>`, 'fa-solid fa-receipt')}
+            ? `<a href="javascript:void(0)" onclick="confirmOpenMap('${esc(shopName)}', '${esc(mapUrl)}')" style="color:var(--primary);font-weight:700;text-decoration:none;"><i class="fa-solid fa-map-location-dot"></i> ${h(shopName)} (View Map)</a>`
+            : `<span style="font-weight:700;">${h(shopName)}</span>`, 'fa-solid fa-store')}
+        ${shopPhone ? kv('Shop Phone', `<a href="tel:${h(shopPhone.replace(/[^\d+]/g, ''))}" style="color:var(--primary);font-weight:700;text-decoration:none;">${h(shopPhone)}</a>`, 'fa-solid fa-phone') : ''}
+        ${kv('Items',        h(lineCount) + (cancelledCount ? ` <span style="color:#ef4444;font-size:.72rem;">(${cancelledCount} cancelled)</span>` : ''), 'fa-solid fa-boxes-stacked')}
+        ${orderNote ? kv('Note', h(orderNote), 'fa-regular fa-note-sticky') : ''}
+
+        ${kvS('Payment')}
+        ${kv('Mode',         h(pay.mode),                   'fa-solid fa-wallet')}
+        ${kv('Status',       pay.pill,                      'fa-solid fa-circle-info')}
+        ${o.paidAt ? kv('Paid On', h(fmtDate(o.paidAt)), 'fa-regular fa-calendar-check') : ''}
+        ${o.razorpayPaymentId ? kv('Payment Ref', `<span style="font-family:monospace;font-size:.72rem;">${h(o.razorpayPaymentId)}</span>`, 'fa-solid fa-hashtag') : ''}
+
+        ${kvS('Price Details')}
+        ${kv(`Items Total (${active.length})`, rupees(subtotal), 'fa-solid fa-file-invoice')}
+        ${mrpSaving > 0 ? kv('Product Discount', `<span style="color:#16a34a;font-weight:700;">You saved ${rupees(mrpSaving)} on MRP</span>`, 'fa-solid fa-tags') : ''}
+        ${discount > 0 ? kv(`Coupon${o.couponCode ? ` (${h(o.couponCode)})` : ''}`, `<span style="color:#16a34a;font-weight:800;">-${rupees(discount)}</span>`, 'fa-solid fa-ticket') : (o.couponCode ? kv('Coupon', h(o.couponCode), 'fa-solid fa-ticket') : '')}
+        ${wallet > 0 ? kv('Wallet Used', `<span style="color:#16a34a;font-weight:800;">-${rupees(wallet)}</span>`, 'fa-solid fa-wallet') : ''}
+        ${kv(isPickup ? 'Delivery' : 'Delivery Charges', fee == null ? '—' : fee === 0 ? `<span style="color:#16a34a;font-weight:800;">FREE${isPickup ? ' (Pickup)' : ''}</span>` : rupees(fee), 'fa-solid fa-truck-fast')}
+        ${kv('Order Total',  `<strong style="color:var(--primary);font-size:1.05rem;">${rupees(total)}</strong>`, 'fa-solid fa-receipt')}
+        ${num(o.amountPaid) > 0 ? kv('Amount Paid', `<strong style="color:#16a34a;">${rupees(o.amountPaid)}</strong>`, 'fa-solid fa-circle-check') : ''}
+        ${!['cancelled','rejected'].includes(statusKey) && num(o.balanceDue) > 0 && (pay.partial || num(o.amountPaid) > 0) ? kv('Balance Due', `<strong style="color:#e11d48;">${rupees(o.balanceDue)}</strong> <span style="font-size:.7rem;color:var(--txt3);">${isPickup ? 'at pickup' : 'on delivery'}</span>`, 'fa-solid fa-triangle-exclamation') : ''}
+
         ${kvS(isPickup ? 'Pickup Details' : 'Delivery Address')}
-        ${isPickup ? kv('Pickup Spot', `<span style="font-weight:700;">${esc(shopName)}</span> — <span style="font-size:.78rem;color:var(--txt2);">${esc(shopAddr)}</span>`, 'fa-solid fa-location-dot') : kv('Address', addrText, 'fa-solid fa-location-dot')}
-        ${o.contacts?.mobile    ? kv('Primary Phone', o.contacts.mobile,    'fa-solid fa-phone')        : ''}
-        ${o.contacts?.altMobile ? kv('Alternate Phone', o.contacts.altMobile, 'fa-solid fa-phone-volume') : ''}
+        ${isPickup ? kv('Pickup Spot', `<span style="font-weight:700;">${h(shopName)}</span> — <span style="font-size:.78rem;color:var(--txt2);">${h(shopAddr)}</span>`, 'fa-solid fa-location-dot') : kv('Address', addrText, 'fa-solid fa-location-dot')}
+        ${o.userName ? kv('Name', h(o.userName), 'fa-regular fa-user') : ''}
+        ${o.contacts?.mobile    ? kv('Primary Phone', h(o.contacts.mobile),    'fa-solid fa-phone')        : ''}
+        ${o.contacts?.altMobile ? kv('Alternate Phone', h(o.contacts.altMobile), 'fa-solid fa-phone-volume') : ''}
     </table>
     ${pickupShopBlock}`;
 
     // Items
-    const isXerox = o.type === 'xerox';
-    const items   = isXerox ? (o.documents||[]) : (o.items||[]);
-    document.getElementById('odItemsList').innerHTML = items.map((item,i) => buildItemCard(item, i, o)).join('');
+    const list = document.getElementById('odItemsList');
+    list.innerHTML = `
+        <div class="od-items-heading"><i class="fa-solid ${isXerox ? 'fa-file-lines' : 'fa-box-open'}"></i> ${isXerox ? 'Documents' : 'Items'} in this order <span>${items.length}</span></div>
+        ${items.length
+            ? items.map((item,i) => buildItemCard(item, i, o)).join('')
+            : '<div class="od-item-card" style="padding:18px;text-align:center;font-size:.8rem;color:var(--txt3);">No items found in this order.</div>'}`;
+}
+
+/* ── Picture for an order line ── */
+function itemPictureHtml(item, order) {
+    const oid = order.id;
+    const icon = item.wallPoster ? 'fa-solid fa-table-cells-large'
+        : (item.customPoster || item.category === 'posters') ? 'fa-regular fa-image' : 'fa-solid fa-box';
+    const placeholder = `<i class="${icon} od-no-img"></i>`;
+    // Custom poster: the customer's own picture (private, signed on screen)
+    if (item.customPoster && (item.customPreview || item.customPhoto)) {
+        return placeholder + secureImgHtml(item.customPreview || item.customPhoto, oid, { alt: item.name || 'Your poster', cls: 'od-sec-img' });
+    }
+    const img = lineImg(item) || primaryOf(productDocs.get(baseIdOf(item)));
+    if (img) {
+        return `<img src="${h(img)}" alt="${h(item.name || 'Item')}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'${icon} od-no-img'}))">`;
+    }
+    const firstPhoto = Array.isArray(item.wallSlots) ? (item.wallSlots.find(s => s && s.photo) || {}).photo : '';
+    if (firstPhoto || item.customPhoto) {
+        return placeholder + secureImgHtml(firstPhoto || item.customPhoto, oid, { alt: item.name || '', cls: 'od-sec-img' });
+    }
+    return placeholder;
+}
+
+/* ── Details of a product line, as the customer chose it ── */
+function productDetailsHtml(item) {
+    const baseId = baseIdOf(item);
+    const custom = CUSTOM_BASE_IDS.has(baseId);
+    const d      = productDocs.get(baseId) || {};
+    const cat    = item.category || d.category || '';
+    const qty    = num(item.qty) || 1;
+    const price  = num(item.price);
+    const mrp    = num(item.originalPrice) || price;
+    const size   = item.size || (!item.wallPoster && !item.customPoster ? String(item.id || '').split('__')[1] : '') || '';
+    const color  = item.color || item.selectedColor || item.variant || '';
+    const fit    = item.customLayout;
+    const rows = [
+        cat ? ['Category', h(CAT_LABELS[cat] || cat)] : null,
+        item.wallPoster === 'wall' ? ['Product', 'Build Your Wall'] : null,
+        item.wallPoster === 'pack' ? ['Product', 'Mix &amp; Match Poster Pack'] : null,
+        item.customPoster ? ['Product', 'Custom poster (your picture)'] : null,
+        size ? ['Size', `<b>${h(sizeText(size))}</b>`] : null,
+        color ? ['Colour / Variant', h(color)] : null,
+        item.gsm ? ['Paper', `${h(item.gsm)} GSM`] : null,
+        item.wallPoster === 'pack' ? ['Pack', `${h(item.packCount || item.wallSlots?.length || '')} posters · ${h(sizeText(item.packSize))}`] : null,
+        item.arrangement ? ['Arrangement', h(ARRANGEMENTS[item.arrangement] || item.arrangement)] : null,
+        fit && (fit.landscape || num(fit.rotate)) ? ['Orientation', `${fit.landscape ? 'Landscape' : 'Portrait'}${num(fit.rotate) ? `, rotated ${num(fit.rotate)}°` : ''}`] : null,
+        mrp > price ? ['MRP', `<s style="color:var(--txt3);">${rupees(mrp)}</s>`] : null,
+        ['Price', `${rupees(price)}${num(item.discountPercent) ? ` <span style="color:#16a34a;font-weight:700;">(${num(item.discountPercent)}% off)</span>` : ''}`],
+        ['Quantity', `×${qty}`],
+        ['Line Total', `<b>${rupees(price * qty)}</b>`],
+        mrp > price ? ['You Save', `<span style="color:#16a34a;font-weight:700;">${rupees((mrp - price) * qty)}</span>`] : null,
+    ].filter(Boolean).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+    const link = !custom && baseId
+        ? `<a href="item-details.html?id=${encodeURIComponent(baseId)}" class="od-product-link"><i class="fa-solid fa-arrow-up-right-from-square"></i> View product</a>` : '';
+    return `
+    <div class="od-paper-config-block">
+        <div class="od-paper-config-title"><i class="fa-solid fa-circle-info"></i> Item Details</div>
+        <table class="od-paper-config-table">${rows}</table>
+        ${link}
+    </div>`;
+}
+
+/* ── The customer's own pictures on a poster line (private, signed) ── */
+function customPhotosHtml(item, order) {
+    if (!item.customPhoto && !item.customPreview) return '';
+    const oid = safeOrderId();
+    const tile = (url, label) => `
+        <a href="${h(url)}" data-secure-file data-order-id="${oid}" target="_blank" rel="noopener" class="od-photo-tile">
+            <span class="od-photo-thumb"><i class="fa-regular fa-image"></i>${secureImgHtml(url, order.id, { alt: label, cls: 'od-sec-img' })}</span>
+            <span class="od-photo-label"><i class="fa-solid fa-eye"></i> ${label}</span>
+        </a>`;
+    return `
+    <div class="od-photo-block">
+        <div class="od-photo-title"><i class="fa-solid fa-image"></i> Your picture</div>
+        <div class="od-photo-row">
+            ${item.customPreview ? tile(item.customPreview, 'As printed') : ''}
+            ${item.customPhoto ? tile(item.customPhoto, item.customPreview ? 'Original' : 'Your photo') : ''}
+        </div>
+        ${item.customNote ? `<div class="od-photo-note"><i class="fa-regular fa-note-sticky"></i> ${h(item.customNote)}</div>` : ''}
+    </div>`;
 }
 
 function buildItemCard(item, idx, order) {
     const isCancelled = ['cancelled','rejected'].includes((item.status||'').toLowerCase());
     const isXerox = order.type === 'xerox';
-    const qty   = item.qty || item.config?.quantity || 1;
-    const price = isXerox ? (item.price||0) : ((item.price||0) * qty);
-    const img   = item.img || item.images?.[0]?.url || '';
 
     const orderPending = deriveOrderStatus(order) === 'pending';
     const itemPending  = !item.status || item.status.toLowerCase() === 'pending';
     const itemType     = isXerox ? 'doc' : 'item';
     const cancelBtn    = (!isCancelled && orderPending && itemPending) ? `
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border, #eee);text-align:center;">
+        <div style="margin-top:12px;padding:12px 0;border-top:1px solid var(--border, #eee);text-align:center;">
             <button onclick="cancelOrderItem('${order.id}', ${idx}, '${itemType}')"
                 style="background:none;border:1.5px solid #ef4444;color:#ef4444;border-radius:50px;padding:7px 22px;font-size:0.78rem;font-weight:700;cursor:pointer;letter-spacing:0.3px;">
                 <i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>Cancel Item
@@ -374,19 +602,27 @@ function buildItemCard(item, idx, order) {
         return buildXeroxDocCard(item, idx, order, cancelBtn);
     }
 
+    const qty   = num(item.qty) || 1;
+    const price = num(item.price);
+    const mrp   = num(item.originalPrice);
+
     return `
-    <div class="od-item-card" id="od-item-${order.id}-${idx}" style="margin-top:10px;">
+    <div class="od-item-card${isCancelled ? ' od-item-card--off' : ''}" id="od-item-${order.id}-${idx}" style="margin-top:10px;">
         <div class="od-item-head">
-            <div class="od-item-img">
-                ${img ? `<img src="${img}" alt="${item.name||'Item'}" loading="lazy">` : '<i class="fa-solid fa-box od-no-img"></i>'}
+            <div class="od-item-img od-item-img--lg">
+                ${itemPictureHtml(item, order)}
             </div>
             <div class="od-item-meta-wrap">
-                <div class="od-item-name">${item.name||'Item'}</div>
-                <div class="od-item-price">₹${item.price.toLocaleString('en-IN')} × ${qty} = ₹${price.toLocaleString('en-IN')}</div>
+                <div class="od-item-name">${h(item.name||'Item')}</div>
+                <div class="od-item-price">
+                    ${mrp > price ? `<s style="opacity:.7;margin-right:4px;">${rupees(mrp)}</s>` : ''}${rupees(price)} × ${qty} = <strong style="color:var(--txt1);">${rupees(price * qty)}</strong>
+                </div>
                 ${itemStatusBadge(item.status || 'pending')}
             </div>
         </div>
+        ${customPhotosHtml(item, order)}
         ${wallSlotsHtml(item, order.id)}
+        ${productDetailsHtml(item)}
         ${buildOdItemTracker(item.status, item.rejectionMessage)}
         ${cancelBtn}
     </div>`;
@@ -398,6 +634,8 @@ function resolveXeroxId(list, id, fallback) {
     return list.find(x => x.id === id)?.name || fallback || id;
 }
 
+const IMAGE_FILE = /\.(jpe?g|png|webp|gif|heic|heif|bmp)(?:$|[?#])/i;
+
 /* ── Full xerox document detail card ── */
 function buildXeroxDocCard(d, idx, order, cancelBtn) {
     const cfg         = d.config || {};
@@ -408,13 +646,21 @@ function buildXeroxDocCard(d, idx, order, cancelBtn) {
     const isWA       = uploadSt === 'whatsapp';
     const isPending  = !isUploaded && (uploadSt === 'pending' || uploadSt === 'later' || uploadSt === 'pending_later' || uploadSt === 'whatsapp');
 
-    const COLOR_LABELS  = { bw: 'Black & White', color: 'Color', mixed: 'Mixed (B&W + Colour)' };
+    const COLOR_LABELS  = { bw: 'Black & White', color: 'Colour', mixed: 'Mixed (B&W + Colour)' };
     const book = cfg.bindingSet;
-    const FORMAT_LABELS = { frontOnly: 'Front Only', both: 'Front & Back' };
+    const FORMAT_LABELS = { frontOnly: 'Single-sided (front only)', both: 'Double-sided (front & back)' };
 
     const paperName = resolveXeroxId(xeroxMeta.paper, cfg.paperId, 'Standard Paper');
     const bindName  = resolveXeroxId(xeroxMeta.binding, cfg.bindingId);
     const lamName   = resolveXeroxId(xeroxMeta.lamination, cfg.laminationId);
+    const copies    = num(cfg.quantity) || 1;
+    const pages     = num(d.pages);
+    const perSide   = cfg.ratio === '1:2' ? 2 : 1;
+    const sides     = Math.ceil(pages / perSide);
+    const sheets    = cfg.format === 'both' ? Math.ceil(sides / 2) : sides;
+
+    const hasFile = isUploaded && d.uploadedUrl && /^https?:/i.test(String(d.uploadedUrl));
+    const isImageFile = hasFile && (IMAGE_FILE.test(String(d.uploadedUrl)) || IMAGE_FILE.test(String(d.name || '')));
 
     let uploadBadge = '';
     if (isUploaded) uploadBadge = `<span class="od-upload-badge od-upload-badge--ok"><i class="fa-solid fa-check-circle"></i> Uploaded</span>`;
@@ -437,28 +683,40 @@ function buildXeroxDocCard(d, idx, order, cancelBtn) {
         </button>` : ''}
     </div>` : '';
 
-    const viewFileBtn = (isUploaded && d.uploadedUrl && !['pending_whatsapp','pending_later'].includes(d.uploadedUrl)) ? `
+    const viewFileBtn = hasFile ? `
     <div style="margin-top:8px;">
-        <a href="${String(d.uploadedUrl).replace(/"/g,'&quot;')}" data-secure-file data-order-id="${String(orderId).replace(/[^A-Za-z0-9_-]/g,'')}" target="_blank" class="od-view-file-btn">
+        <a href="${h(d.uploadedUrl)}" data-secure-file data-order-id="${safeOrderId()}" target="_blank" class="od-view-file-btn">
             <i class="fa-solid fa-eye"></i> View Uploaded File
         </a>
     </div>` : '';
 
+    const thumb = isImageFile
+        ? `<i class="fa-regular fa-file-image od-no-img"></i>${secureImgHtml(d.uploadedUrl, order.id, { alt: d.name || 'Document', cls: 'od-sec-img' })}`
+        : `<i class="fa-regular ${/\.pdf$/i.test(String(d.name || '')) || !d.name ? 'fa-file-pdf' : 'fa-file-lines'} od-no-img" style="color:#ef4444;opacity:.75;"></i>`;
+
+    const colourRow = cfg.color === 'mixed'
+        ? `<tr><td>Colour Pages</td><td>${h(cfg.colorPages || '—')}${cfg.colorPageCount ? ` (${num(cfg.colorPageCount)} pg)` : ''}, rest B&amp;W</td></tr>`
+        : (cfg.colorMode === 'custom' && cfg.customColorPages ? `<tr><td>Colour Pages</td><td>${h(cfg.customColorPages)}</td></tr>` : '');
+
     return `
-    <div class="od-item-card od-xerox-doc-card" id="od-item-${order.id}-${idx}">
+    <div class="od-item-card od-xerox-doc-card${isCancelled ? ' od-item-card--off' : ''}" id="od-item-${order.id}-${idx}">
 
         <div class="od-doc-head-row">
             <span class="od-doc-label">Document ${idx+1}</span>
             ${d.requiresManualEstimation ? `<span class="od-doc-est-badge">Manual Est.</span>` : ''}
         </div>
 
-        <div class="od-doc-filename">${d.name}</div>
-
-        <div class="od-doc-meta-row">
-            <span class="od-doc-meta-item"><i class="fa-regular fa-file-lines"></i>${d.pages||0} Pages</span>
-            <span class="od-doc-price-chip">₹${(d.price||0).toFixed(2)}</span>
-            ${!isCancelled ? uploadBadge : ''}
-            ${itemStatusBadge(d.status || 'pending')}
+        <div class="od-doc-main">
+            <div class="od-item-img">${thumb}</div>
+            <div class="od-item-meta-wrap">
+                <div class="od-doc-filename">${h(d.name || 'Document')}</div>
+                <div class="od-doc-meta-row">
+                    <span class="od-doc-meta-item"><i class="fa-regular fa-file-lines"></i>${pages} Page${pages === 1 ? '' : 's'} × ${copies}</span>
+                    <span class="od-doc-price-chip">${rupees(d.price)}</span>
+                    ${!isCancelled ? uploadBadge : ''}
+                    ${itemStatusBadge(d.status || 'pending')}
+                </div>
+            </div>
         </div>
 
         ${uploadBtn}
@@ -468,49 +726,31 @@ function buildXeroxDocCard(d, idx, order, cancelBtn) {
 
         <div class="od-paper-config-block">
             <div class="od-paper-config-title">
-                <i class="fa-solid fa-file-invoice"></i> Paper Configuration
+                <i class="fa-solid fa-file-invoice"></i> Print Settings
             </div>
             <table class="od-paper-config-table">
-                <tr><td>Paper Type</td><td>${paperName||'Standard'}</td></tr>
-                <tr><td>Color Mode</td><td>${COLOR_LABELS[cfg.color]||cfg.color||'B&W'}</td></tr>
-                ${cfg.color === 'mixed' ? `<tr><td>Colour Pages</td><td>${cfg.colorPages} (rest B&amp;W)</td></tr>` : ''}
-                <tr><td>Print Format</td><td>${FORMAT_LABELS[cfg.format]||cfg.format||'Front Only'}</td></tr>
-                ${cfg.ratio && cfg.ratio !== '1:1' ? `<tr><td>Ratio</td><td>${cfg.ratio}</td></tr>` : ''}
-                <tr><td>Total Pages</td><td>${d.pages||0} pages</td></tr>
-                <tr><td>Quantity</td><td>×${cfg.quantity||1} ${(cfg.quantity||1)>1?'copies':'copy'}</td></tr>
-                ${bindName ? `<tr><td>Binding</td><td>${bindName}</td></tr>` : ''}
-                ${book ? `<tr><td>Combined Book</td><td>File ${book.position} of ${book.size}</td></tr>` : ''}
-                ${lamName  ? `<tr><td>Lamination</td><td>${lamName}</td></tr>` : ''}
+                <tr><td>Paper</td><td>${h(paperName||'Standard')}</td></tr>
+                <tr><td>Colour</td><td>${h(COLOR_LABELS[cfg.color]||cfg.color||'Black & White')}</td></tr>
+                ${colourRow}
+                <tr><td>Sides</td><td>${h(FORMAT_LABELS[cfg.format]||cfg.format||'Single-sided (front only)')}</td></tr>
+                <tr><td>Pages per Side</td><td>${perSide === 2 ? '2 pages per side (1:2)' : '1 page per side'}</td></tr>
+                <tr><td>Total Pages</td><td>${pages} page${pages === 1 ? '' : 's'}${pages ? ` · about ${sheets} sheet${sheets === 1 ? '' : 's'} per copy` : ''}</td></tr>
+                <tr><td>Copies</td><td>×${copies} ${copies>1?'copies':'copy'}</td></tr>
+                <tr><td>Binding</td><td>${bindName ? h(bindName) : 'None'}</td></tr>
+                ${book ? `<tr><td>Bound Together</td><td>File ${num(book.position)} of ${num(book.size)} in one book${Array.isArray(book.files) && book.files.length ? ` (${h(book.files.join(' → '))})` : ''}${book.chargedHere ? ' · binding charged on this file' : ''}</td></tr>` : ''}
+                <tr><td>Lamination</td><td>${lamName ? h(lamName) : 'None'}</td></tr>
+                <tr><td>Price</td><td><b>${rupees(d.price)}</b>${copies > 1 ? ` <span style="color:var(--txt3);font-size:.72rem;">(${rupees(num(d.price) / copies)} per copy)</span>` : ''}</td></tr>
             </table>
         </div>
 
         ${cfg.instructions ? `
         <div class="od-instructions-block">
             <i class="fa-solid fa-note-sticky"></i>
-            <span><strong>Instructions:</strong> ${cfg.instructions}</span>
+            <span><strong>Instructions:</strong> ${h(cfg.instructions)}</span>
         </div>` : ''}
 
         ${cancelBtn}
     </div>`;
-}
-
-function buildTracker(step) {
-    const steps = [
-        { icon:'fa-solid fa-hourglass-half', label:'Pending'    },
-        { icon:'fa-solid fa-gears',           label:'Processing' },
-        { icon:'fa-solid fa-truck-fast',      label:'On the Way' },
-        { icon:'fa-solid fa-circle-check',    label:'Delivered'  },
-    ];
-    const fill = Math.round(((Math.max(0, step-1)) / 3) * 100);
-    const stepsHtml = steps.map((s, i) => {
-        const n   = i + 1;
-        const cls = n < step ? 'od-step done' : n === step ? 'od-step active' : 'od-step';
-        return `<div class="${cls}">
-            <div class="od-step-dot"><i class="${s.icon}"></i></div>
-            <span class="od-step-label">${s.label}</span>
-        </div>`;
-    }).join('');
-    return `<div class="od-tracker" style="--fill:${fill};">${stepsHtml}</div>`;
 }
 
 function showError() {

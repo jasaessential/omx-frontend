@@ -1,168 +1,57 @@
 /**
  * Order My Xerox - JASA V2 Service Worker
- * Pages and same-origin code (JS / CSS / JSON) are fetched network-first, so a
- * deploy reaches users on their next load without bumping ?v= tags or the cache
- * name; the cache is only the offline fallback. Bumping CACHE_NAME is still how
- * a change to this file shows the "Update" card (app.js).
+ * NO-CACHE MODE: this worker caches nothing. Every page, script, style, image
+ * and API call goes straight to the network, so each load is fresh.
+ * It is kept only for PWA / TWA install, push notifications and background sync.
+ * On activate it deletes EVERY Cache Storage entry left by older versions
+ * (jasa-v2-shell-v*, jasa-v2-runtime-v*, ...) and takes control at once.
  */
 
-const CACHE_NAME    = 'jasa-v2-shell-v7';
-const RUNTIME_CACHE = 'jasa-v2-runtime-v7';
-
-const SHELL_FILES = [
-    'offline.html',
-    'index.html',
-    'login.html',
-    'categories.html',
-    'cart.html',
-    'orders.html',
-    'xerox-order.html',
-    'profile.html',
-    'manifest.json',
-    'styles.css',
-    'app.js',
-    'head-cache.js',
-    'firebase-init.js',
-    'env-config.js',
-    'favicon.ico',
-    'assets/icons/android/launchericon-192x192.png',
-    'assets/icons/android/launchericon-512x512.png',
-];
-
-const SKIP_HOSTS = [
-    'firestore.googleapis.com',
-    'firebase.googleapis.com',
-    'identitytoolkit.googleapis.com',
-    'securetoken.googleapis.com',
-    'fcmregistrations.googleapis.com',
-    'supabase.co',
-    'workers.dev',
-    'lottie.host',
-    'r2.dev',                   // Cloudflare R2 product images — always fetch live
-    'r2.cloudflarestorage.com', // R2 direct storage endpoint
-];
-
-const CDN_HOSTS = [
-    'fonts.googleapis.com',
-    'fonts.gstatic.com',
-    'cdnjs.cloudflare.com',
-    'cdn.jsdelivr.net',
-    'unpkg.com',
-];
+const SW_VERSION = 'jasa-v2-nocache-v8';
 
 // ════ INSTALL ═════════════════════════════════════════════════════════════════
-// Do NOT skipWaiting on install — wait for user to tap "Update" on index page.
-self.addEventListener('install', (evt) => {
-    evt.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(SHELL_FILES).catch(() => {}))
-        // No self.skipWaiting() here — the update card in app.js handles it
-    );
+// No precache. Activate immediately so old caching workers are replaced on the
+// next visit without waiting for every tab to close.
+self.addEventListener('install', () => {
+    self.skipWaiting();
 });
 
 // ════ ACTIVATE ════════════════════════════════════════════════════════════════
 self.addEventListener('activate', (evt) => {
     evt.waitUntil(
         caches.keys()
-            .then(keys => Promise.all(
-                keys
-                    .filter(k => k !== CACHE_NAME && k !== RUNTIME_CACHE)
-                    .map(k => caches.delete(k))
-            ))
+            .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+            .catch(() => {})
             .then(() => self.clients.claim())
     );
 });
 
 // ════ FETCH ═══════════════════════════════════════════════════════════════════
+// Only page navigations are handled, and only to show a small offline notice
+// when the network is down. Everything else is not intercepted at all (the
+// browser fetches it normally, following the no-store headers in _headers).
+const OFFLINE_HTML = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Offline - Order My Xerox</title>'
+    + '<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;'
+    + 'min-height:100vh;margin:0;background:#f8fafc;color:#0f172a;text-align:center;padding:24px}'
+    + 'button{margin-top:16px;padding:12px 24px;border:0;border-radius:10px;background:#e11d48;color:#fff;font-size:16px}</style>'
+    + '</head><body><div><h1>You are offline</h1><p>Check your internet connection and try again.</p>'
+    + '<button onclick="location.reload()">Retry</button></div></body></html>';
+
 self.addEventListener('fetch', (evt) => {
     const req = evt.request;
-    if (req.method !== 'GET') return;
-
-    let url;
-    try { url = new URL(req.url); } catch { return; }
-
-    if (url.protocol === 'chrome-extension:') return;
-    if (SKIP_HOSTS.some(h => url.hostname.includes(h))) return;
-
-    if (req.mode === 'navigate') {
-        evt.respondWith(networkFirstNavigate(req, url));
-        return;
-    }
-    if (req.destination === 'image') {
-        evt.respondWith(staleWhileRevalidate(req));
-        return;
-    }
-    if (CDN_HOSTS.some(h => url.hostname.includes(h))) {
-        evt.respondWith(cacheFirst(req));
-        return;
-    }
-    if (url.hostname === self.location.hostname) {
-        const isCode = ['script', 'style', 'manifest'].includes(req.destination)
-            || /\.(m?js|css|json)$/.test(url.pathname);
-        evt.respondWith(isCode ? networkFirst(req) : cacheFirst(req));
-        return;
-    }
+    if (req.method !== 'GET' || req.mode !== 'navigate') return;
+    evt.respondWith(
+        fetch(req).catch(() => new Response(OFFLINE_HTML, {
+            status: 503,
+            headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+        }))
+    );
 });
 
-// ─── Strategies ───────────────────────────────────────────────────────────────
-async function networkFirstNavigate(req, url) {
-    try {
-        const res = await fetch(req);
-        if (res.ok) {
-            const cache = await caches.open(RUNTIME_CACHE);
-            cache.put(req, res.clone());
-        }
-        return res;
-    } catch {
-        return (
-            await caches.match(req) ||
-            await caches.match(url.pathname) ||
-            await caches.match('offline.html') ||
-            new Response('Offline', { status: 503 })
-        );
-    }
-}
-
-/* Fresh code when online; cached copy if the network fails or takes > 4s */
-async function networkFirst(req) {
-    const cache = await caches.open(RUNTIME_CACHE);
-    try {
-        const res = await Promise.race([
-            fetch(req),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
-        ]);
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-    } catch {
-        return (await caches.match(req)) || new Response('Offline', { status: 503 });
-    }
-}
-
-async function cacheFirst(req) {
-    const cached = await caches.match(req);
-    if (cached) return cached;
-    try {
-        const res   = await fetch(req);
-        const cache = await caches.open(RUNTIME_CACHE);
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-    } catch {
-        return new Response('Offline', { status: 503 });
-    }
-}
-
-async function staleWhileRevalidate(req) {
-    const cache  = await caches.open(RUNTIME_CACHE);
-    const cached = await cache.match(req);
-    const fetchP = fetch(req).then(res => {
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-    }).catch(() => cached);
-    return cached || fetchP;
-}
-
 // ════ MESSAGE ═════════════════════════════════════════════════════════════════
-// The update banner in app.js posts SKIP_WAITING when the user taps "Update".
+// Kept for compatibility: a page may still post SKIP_WAITING.
 self.addEventListener('message', (evt) => {
     if (evt.data && evt.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
@@ -197,12 +86,10 @@ self.addEventListener('periodicsync', (evt) => {
     }
 });
 
+/* No-cache mode: nothing to pre-fetch; just tell open pages to refresh their data. */
 async function periodicRefreshProducts() {
-    const cache = await caches.open(RUNTIME_CACHE);
-    const pages = ['index.html', 'categories.html', 'xerox-order.html'];
-    await Promise.allSettled(pages.map(async p => {
-        try { const r = await fetch(p); if (r.ok) await cache.put(p, r); } catch (_) {}
-    }));
+    const clients = await self.clients.matchAll({ includeUncontrolled: true });
+    clients.forEach(c => c.postMessage({ type: 'PERIODIC_SYNC', tag: 'refresh-products' }));
 }
 
 function openIDB() {

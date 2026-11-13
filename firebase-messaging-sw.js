@@ -9,6 +9,18 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-comp
 importScripts('env-config-sw.js'); // provides: var FIREBASE_CONFIG = {...}
 
 firebase.initializeApp(FIREBASE_CONFIG);
+
+/* ── No-cache mode: take over at once and delete any Cache Storage left by
+      older caching service workers (this worker caches nothing). ── */
+self.addEventListener('install', function () { self.skipWaiting(); });
+self.addEventListener('activate', function (evt) {
+    evt.waitUntil(
+        caches.keys()
+            .then(function (keys) { return Promise.all(keys.map(function (k) { return caches.delete(k); })); })
+            .catch(function () {})
+            .then(function () { return self.clients.claim(); })
+    );
+});
 const messaging = firebase.messaging();
 
 /* ── Background push (tab closed / not focused) ── */

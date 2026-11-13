@@ -42,7 +42,7 @@ onAuthStateChanged(auth, u => { user = u; renderPickerHead(); });
 /* ════════ Load ════════ */
 async function load() {
     $('wbTitle').textContent = IS_WALL ? 'Build Your Wall' : 'Mix & Match Posters';
-    document.title = `${IS_WALL ? 'Build Your Wall' : 'Mix & Match Posters'} — JASA Essential`;
+    document.title = `${IS_WALL ? 'Build Your Wall' : 'Mix & Match Posters'} | Order My Xerox`;
     try {
         const snap = await getDoc(doc(db, 'poster_config', 'main'));
         cfg = snap.exists() ? snap.data() : {};

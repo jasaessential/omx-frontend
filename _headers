@@ -28,24 +28,16 @@
   X-Robots-Tag: noindex
   Cache-Control: no-store, no-cache, private
 
-# Security headers for all pages
+# Security headers + NO-CACHE MODE for everything served by Pages.
+# Owner request: no caching for now, so every page, script, style, JSON, image
+# and icon is fetched fresh on each load (browser and Android TWA alike).
+# A single /* rule is used because Pages serves pages at extensionless URLs
+# (/cart, not /cart.html), which a /*.html rule would not match.
+# `private` matters: the zone's Browser Cache TTL (4h) overrides plain
+# directives but leaves private responses alone.
 /*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(self)
-
-# Code: browsers re-check with the server on every load (a cheap 304 when unchanged),
-# so a deploy reaches users immediately. Without this, JS/CSS were cached for 4 hours.
-# `private` matters: the zone's Browser Cache TTL (4h) overrides a plain `no-cache`
-# but leaves private responses alone.
-/*.js
-  Cache-Control: private, no-cache
-/*.css
-  Cache-Control: private, no-cache
-/*.json
-  Cache-Control: private, no-cache
-/
-  Cache-Control: private, no-cache
-/*.html
-  Cache-Control: private, no-cache
+  Cache-Control: private, no-store, max-age=0

@@ -473,6 +473,10 @@ window.refreshAllCache = function () {
         }
     });
 
+    /* Shared no-cache sweep from head-cache.js (local/session storage,
+       Cache Storage, old Firestore offline copy) */
+    try { if (typeof window.jasaClearDataCaches === 'function') cleared += window.jasaClearDataCaches(); } catch (_) {}
+
     /* Visual feedback on the button */
     const btn = document.getElementById('refreshCacheBtn');
     if (btn) {

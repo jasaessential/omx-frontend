@@ -7,7 +7,7 @@
    • Stats: campaigns, eligible users, 7-day count
    ═══════════════════════════════════════════════ */
 import { auth, db }         from './firebase-init.js';
-import { WORKER_URL } from './env-config.js';
+import { WORKER_URL, SERVER_URL } from './env-config.js';
 import { onAuthStateChanged }           from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { doc, getDoc, collection, getDocs }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
@@ -172,12 +172,22 @@ window.sendNotification = async function() {
 
         setStatus(`<i class="fa-solid fa-paper-plane"></i> Sending to ${tokens.length} devices…`, 'info');
 
-        const res = await fetch(`${WORKER_URL}/api/send-push-all`, {
-            method: 'POST',
-            headers: await authHeaders(),
-            body: JSON.stringify({ title, body, image: image || undefined, link, tokens })
+        const payload = JSON.stringify({ title, body, image: image || undefined, link, tokens });
+        let res = await fetch(`${WORKER_URL}/api/send-push-all`, {
+            method: 'POST', headers: await authHeaders(), body: payload
         });
-        const result = await res.json();
+        let result = await res.json().catch(() => ({}));
+
+        /* The Worker needs its own FIREBASE_SERVICE_ACCOUNT secret. When it is
+           missing, send through the Render server, which already has Firebase
+           Admin credentials. */
+        if (!res.ok && isMissingCredsError(result.error)) {
+            setStatus(`<i class="fa-solid fa-paper-plane"></i> Sending to ${tokens.length} devices via the backup server…`, 'info');
+            res = await fetch(`${SERVER_URL}/api/marketing/send-push`, {
+                method: 'POST', headers: await authHeaders(), body: payload
+            });
+            result = await res.json().catch(() => ({}));
+        }
 
         if (res.ok) {
             setStatus(`<i class="fa-solid fa-check-circle"></i> Sent to ${result.successCount || tokens.length} users!${result.failureCount ? ` (${result.failureCount} failed)` : ''}`, 'success');
@@ -188,7 +198,7 @@ window.sendNotification = async function() {
             window.updatePreview();
             await fetchHistory();
         } else {
-            setStatus(`<i class="fa-solid fa-times-circle"></i> Error: ${result.error || 'Send failed'}`, 'error');
+            setStatus(`<i class="fa-solid fa-times-circle"></i> ${friendlySendError(res.status, result.error)}`, 'error');
         }
     } catch (err) {
         setStatus(`<i class="fa-solid fa-times-circle"></i> Network error: ${err.message}`, 'error');
@@ -197,6 +207,27 @@ window.sendNotification = async function() {
         btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Launch Campaign';
     }
 };
+
+/* ── Error helpers ── */
+function isMissingCredsError(msg) {
+    return /service.?account|not configured|credential/i.test(String(msg || ''));
+}
+
+function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function friendlySendError(status, msg) {
+    if (status === 401) return 'Your session expired. Please sign in again and retry.';
+    if (status === 403) return 'Your account needs the admin or manage_marketing role to send campaigns.';
+    if (isMissingCredsError(msg)) {
+        return 'Push sending is not set up yet: the server has no Firebase service account. ' +
+               'Ask the site owner to add the FIREBASE_SERVICE_ACCOUNT secret to the Cloudflare Worker ' +
+               '(Firebase console → Project settings → Service accounts → Generate new private key, then ' +
+               '<code>npx wrangler secret put FIREBASE_SERVICE_ACCOUNT</code> and paste the JSON).';
+    }
+    return `Could not send the campaign: ${esc(msg || 'unknown error')} (HTTP ${status}).`;
+}
 
 /* ── Delete history item ── */
 window.deleteHistory = async function(id) {

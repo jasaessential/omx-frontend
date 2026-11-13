@@ -137,11 +137,11 @@ class FCMV1Service {
                         image: notification.image || ""
                     },
                     notification: {
-                        icon: "https://jasajasa12345.pages.dev/assets/logo.png",
+                        icon: "https://ordermyxerox.com/assets/logo.png",
                         image: notification.image || null
                     },
                     fcm_options: {
-                        link: notification.link || "https://jasajasa12345.pages.dev/home.html"
+                        link: notification.link || "https://ordermyxerox.com/"
                     }
                 }
             }
@@ -177,11 +177,11 @@ class FCMV1Service {
                         image: notification.image || ""
                     },
                     notification: {
-                        icon: "https://jasajasa12345.pages.dev/assets/logo.png",
+                        icon: "https://ordermyxerox.com/assets/logo.png",
                         image: notification.image || null
                     },
                     fcm_options: {
-                        link: notification.link || "https://jasajasa12345.pages.dev/home.html"
+                        link: notification.link || "https://ordermyxerox.com/"
                     }
                 }
             }
@@ -658,7 +658,7 @@ async function handleGetItemsByCategory(request, env) {
                 headers: {
                     'Content-Type': 'application/json',
                     'Access-Control-Allow-Origin': '*',
-                    'Cache-Control': 'public, max-age=3600'
+                    'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
                 }
             });
         }
@@ -685,7 +685,7 @@ async function handleGetItemsByCategory(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=3600'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     } catch (error) {
@@ -710,7 +710,7 @@ async function handleGetXeroxConfig(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     }
@@ -730,7 +730,7 @@ async function handleGetXeroxConfig(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     } catch (error) {
@@ -753,7 +753,7 @@ async function handleGetShopsAll(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'no-cache, private'  // shop edits must reach customers at once
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode
             }
         });
     }
@@ -773,7 +773,7 @@ async function handleGetShopsAll(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'no-cache, private'  // shop edits must reach customers at once
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode
             }
         });
     } catch (error) {
@@ -797,7 +797,7 @@ async function handleGetLocations(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     }
@@ -817,7 +817,7 @@ async function handleGetLocations(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     } catch (error) {
@@ -862,7 +862,7 @@ async function handleGetData(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=3600'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     }
@@ -892,7 +892,7 @@ async function handleGetData(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=3600'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     } catch (error) {
@@ -1807,7 +1807,7 @@ async function handleGetCloudinaryResources(request, env) {
             headers: { 
                 'Content-Type': 'application/json', 
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'no-cache'
+                'Cache-Control': 'private, no-store, max-age=0'
             }
         });
     } catch (error) {
@@ -2159,7 +2159,7 @@ async function handleGetOtherShops(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=86400'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     }
@@ -2253,7 +2253,7 @@ async function handleGetPaymentConfig(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=43200'   // 12-hr browser hint
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     }
@@ -2303,7 +2303,7 @@ async function handleGetPaymentConfig(request, env) {
             headers: {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=43200'
+                'Cache-Control': 'private, no-store, max-age=0'  // no-cache mode: browsers/TWA never reuse API data (KV stays the edge store)
             }
         });
     } catch (error) {

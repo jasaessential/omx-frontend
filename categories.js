@@ -250,7 +250,7 @@ async function loadItems(cat) {
     let workerOk = false;
     let workerReached = false;
     try {
-        const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-cache' });
+        const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-store' });
         if (res.ok) {
             workerReached = true;
             const json = await res.json();
@@ -271,18 +271,7 @@ async function loadItems(cat) {
         console.error(`[categories] Worker fetch failed:`, err.message);
     }
 
-    /* 2. Worker unreachable — the copy saved on this device */
-    if (!workerReached) {
-        try {
-            const { data } = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}');
-            if (Array.isArray(data) && data.length) {
-                allItems = data;
-                buildFilterUI();
-                applyAndRender();
-                return;
-            }
-        } catch (_) {}
-    }
+    /* 2. (no device cache — whole app runs without stale copies) */
 
     /* 3. Firestore categoryData/{cat} snapshot — faster single-doc read */
     if (!workerOk) {
@@ -319,11 +308,8 @@ async function loadItems(cat) {
     }
 }
 
-function cacheItems(key, data) {
-    try {
-        sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
-    } catch (_) {}
-}
+/* Device caching is disabled app-wide: every load reads fresh data. */
+function cacheItems(_key, _data) { /* no-op */ }
 
 /* ════════════════════════════════
    HELPERS

@@ -85,26 +85,6 @@ async function loadUserOrders(uid) {
     const resultEl = document.getElementById('trackResult');
     if (!resultEl) return;
 
-    /* ── Instant render from orders cache (no flash) ── */
-    const ORDERS_CACHE = 'jasa_orders_cache';
-    try {
-        const raw = localStorage.getItem(ORDERS_CACHE);
-        if (raw) {
-            const cached = JSON.parse(raw);
-            if (cached?.length) {
-                const activeKeywords = ['pending','processing','out for delivery','confirmed','accepted'];
-                const active = cached.filter(o => activeKeywords.includes(deriveOrderStatus(o)));
-                if (active.length) {
-                    resultEl.style.display = 'block';
-                    let html = `<div class="tr-section-label"><i class="fa-solid fa-bolt-lightning"></i> Active Orders</div>`;
-                    html += active.slice(0,3).map(o => buildResultCard(o, true)).join('');
-                    html += `<a href="orders.html" class="tr-view-all-btn"><i class="fa-solid fa-list"></i> View All Orders</a>`;
-                    resultEl.innerHTML = html;
-                }
-            }
-        }
-    } catch (_) {}
-
     /* ── Show spinner if nothing cached ── */
     if (!resultEl.innerHTML.trim()) {
         resultEl.style.display = 'block';
@@ -138,17 +118,6 @@ async function loadUserOrders(uid) {
             const ss = statusSnaps[i];
             if (ss?.exists()) o.status = ss.data().status || o.status;
         });
-
-        /* ── Update orders cache with fresh data ── */
-        try {
-            const existing = JSON.parse(localStorage.getItem(ORDERS_CACHE) || '[]');
-            orders.forEach(fresh => {
-                const idx = existing.findIndex(e => e.id === fresh.id);
-                if (idx !== -1) existing[idx] = { ...existing[idx], ...fresh };
-                else existing.unshift(fresh);
-            });
-            localStorage.setItem(ORDERS_CACHE, JSON.stringify(existing));
-        } catch (_) {}
 
         /* Separate active vs recent */
         const activeKeywords = ['pending', 'processing', 'out for delivery', 'confirmed', 'accepted'];
@@ -288,14 +257,40 @@ function buildResultCard(order, isOwner) {
     const shopHtml = order.shopName
         ? `<div class="tr-row">
                <span class="tr-label"><i class="fa-solid fa-store"></i> Shop</span>
-               <span class="tr-val">${order.shopName}</span>
+               <span class="tr-val">${String(order.shopName).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</span>
+           </div>`
+        : '';
+
+    /* Owner: first few items with their pictures (lines may carry img, imageUrl or images[]) */
+    const escH = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const picOf = it => {
+        const imgs = Array.isArray(it.images) ? it.images : [];
+        const p = imgs.find(x => x && x.isPrimary) || imgs[0] || {};
+        return it.img || it.imageUrl || it.image || it.thumbnail || (typeof p === 'string' ? p : p.url)
+            || (Array.isArray(it.wallSlots) ? (it.wallSlots.find(x => x && x.img) || {}).img : '') || '';
+    };
+    const itemsHtml = isOwner && itemCount
+        ? `<div class="tr-row" style="align-items:flex-start;">
+               <span class="tr-label"><i class="fa-solid fa-box-open"></i> Items</span>
+               <span class="tr-val" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                   ${items.slice(0, 3).map(it => {
+                       const pic = isXerox ? '' : picOf(it);
+                       const qty = isXerox ? (it.config?.quantity || 1) : (it.qty || 1);
+                       return `<span style="display:flex;align-items:center;gap:6px;max-width:100%;">
+                           <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escH(it.name || (isXerox ? 'Document' : 'Item'))} ×${qty}</span>
+                           ${pic ? `<img src="${escH(pic)}" alt="" loading="lazy" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;border:1px solid var(--border,#e5e7eb);" onerror="this.remove()">`
+                                 : `<i class="fa-solid ${isXerox ? 'fa-file-lines' : 'fa-box'}" style="width:28px;text-align:center;opacity:.5;"></i>`}
+                       </span>`;
+                   }).join('')}
+                   ${itemCount > 3 ? `<span style="font-size:.72rem;opacity:.7;">+${itemCount - 3} more</span>` : ''}
+               </span>
            </div>`
         : '';
 
     const addrHtml = isOwner && order.deliveryAddress
         ? `<div class="tr-row">
                <span class="tr-label"><i class="fa-solid fa-location-dot"></i> Deliver To</span>
-               <span class="tr-val">${order.deliveryAddress.street}, ${order.deliveryAddress.city}</span>
+               <span class="tr-val">${escH([order.deliveryAddress.street, order.deliveryAddress.city].filter(Boolean).join(', '))}</span>
            </div>`
         : '';
 
@@ -324,7 +319,7 @@ function buildResultCard(order, isOwner) {
                 <i class="${st.icon}"></i> ${st.label}
             </span>
         </div>
-        <div class="tr-rows">${shopHtml}${addrHtml}</div>
+        <div class="tr-rows">${shopHtml}${itemsHtml}${addrHtml}</div>
         ${trackerHtml}
         <div class="tr-footer">${detailsLink}</div>
     </div>`;

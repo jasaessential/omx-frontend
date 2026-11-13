@@ -1,0 +1,17 @@
+# robots.txt for https://ordermyxerox.com
+# Public pages are crawlable. Staff/admin tools are blocked here; customer
+# account pages (login, cart, orders, profile, wallet, ...) stay crawlable
+# so search engines can see their <meta name="robots" content="noindex">.
+
+User-agent: *
+Allow: /
+Disallow: /admin-
+Disallow: /manage-
+Disallow: /seller-
+Disallow: /employee-
+Disallow: /generate-bill
+Disallow: /payment-config
+Disallow: /server/
+Disallow: /supabase/
+
+Sitemap: https://ordermyxerox.com/sitemap.xml

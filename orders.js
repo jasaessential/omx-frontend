@@ -70,28 +70,17 @@ onAuthStateChanged(auth, user => {
 });
 
 async function loadOrders(uid) {
-    /* ── Load shops for delivery fee calculation (3-layer cache) ── */
-    const SHOPS_KEY = 'global_shops_data_v1';
-    try {
-        const cached = localStorage.getItem(SHOPS_KEY);
-        if (cached) {
-            const { data, timestamp, ttl } = JSON.parse(cached);
-            if (Date.now() - timestamp < (ttl || 86400000) && data?.length) {
-                shopsCache = data;
-            }
-        }
-    } catch (_) {}
+    /* No device cache: show the skeleton until live data arrives */
+    showSkeleton();
 
+    /* ── Load shops for delivery fee calculation (always fresh, no device cache) ── */
     if (!shopsCache.length) {
         try {
-            const res = await fetch(`${WORKER_URL}/api/shops/all`, { signal: AbortSignal.timeout(4000) });
+            const res = await fetch(`${WORKER_URL}/api/shops/all`, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
             if (res.ok) {
                 const json  = await res.json();
                 const shops = json.shops || json.data || [];
-                if (shops.length) {
-                    localStorage.setItem(SHOPS_KEY, JSON.stringify({ data: shops, timestamp: Date.now(), ttl: 86400000 }));
-                    shopsCache = shops;
-                }
+                if (shops.length) shopsCache = shops;
             }
         } catch (_) {}
     }
@@ -100,22 +89,14 @@ async function loadOrders(uid) {
         try {
             const snap = await getDocs(collection(db, 'shops'));
             shopsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            localStorage.setItem(SHOPS_KEY, JSON.stringify({ data: shopsCache, timestamp: Date.now(), ttl: 86400000 }));
         } catch (_) {}
     }
-
-    /* ── Instant render from localStorage orders cache ── */
-    const cached = localStorage.getItem('jasa_orders_cache');
-    if (cached) {
-        try { allOrders = JSON.parse(cached); renderOrders(); } catch(_){}
-    } else { showSkeleton(); }
 
     /* ── Fetch static order data ── */
     try {
         const q    = query(collection(db,'orders'), where('userId','==',uid), orderBy('createdAt','desc'));
         const snap = await getDocs(q);
         allOrders  = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-        localStorage.setItem('jasa_orders_cache', JSON.stringify(allOrders));
         renderOrders();
     } catch(e) { console.error('Orders fetch:',e); }
 
@@ -130,7 +111,7 @@ async function loadOrders(uid) {
             if (ch.type==='modified' && idx!==-1) { allOrders[idx] = { ...allOrders[idx], ...data }; changed=true; }
             else if (ch.type==='added' && idx===-1){ allOrders.push(data); changed=true; }
         });
-        if (changed) { sortOrders(); localStorage.setItem('jasa_orders_cache',JSON.stringify(allOrders)); renderOrders(); }
+        if (changed) { sortOrders(); renderOrders(); }
     }, err => console.warn('orders snap err:',err));
 
     /* ── Real-time status changes ── */
@@ -145,7 +126,7 @@ async function loadOrders(uid) {
                 allOrders[idx].status = status; changed = true;
             }
         });
-        if (changed) { localStorage.setItem('jasa_orders_cache',JSON.stringify(allOrders)); renderOrders(); }
+        if (changed) { renderOrders(); }
     }, err => console.warn('status snap err:',err));
 }
 

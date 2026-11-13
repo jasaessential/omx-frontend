@@ -53,7 +53,10 @@ function renderCouponBox(sub = 0) {
         : `Add ₹${Math.max(0, appliedCoupon.minOrderAmount - sub).toLocaleString('en-IN')} more to use this coupon`);
 }
 
-function setCouponError(msg) { setText('couponErr', msg || ''); }
+function setCouponError(msg) {
+    setText('couponErr', msg || '');
+    if (msg) flagInvalid(document.getElementById('couponBox'), msg, 'couponInput', 'nearest');
+}
 
 window.applyCoupon = async function() {
     const input = document.getElementById('couponInput');
@@ -298,7 +301,6 @@ async function fetchShops() {
     const CACHE_KEY = 'global_shops_data_v1';
     const keep = shops => {
         allShops = shops;
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: shops, timestamp: Date.now() })); } catch (_) {}
     };
     /* 1. Worker edge cache (busted whenever a shop is saved) */
     try {
@@ -731,7 +733,7 @@ function renderShopSelectors(activeCats) {
         }
 
         html += `
-        <div class="cs-selector-block">
+        <div class="cs-selector-block" data-cat="${cat}">
             <div class="cs-selector-label">
                 <i class="${cfg.icon}" style="color:${cfg.color};"></i>
                 <span>${cfg.label}</span>
@@ -871,7 +873,10 @@ window.validateAndProceed = function() {
     }
     const cart  = getCart();
     const items = cart.filter(i => checkedIds.has(i.id));
-    if (!items.length) { showToast('Select at least one item to checkout.', 'error'); return; }
+    if (!items.length) {
+        flagInvalid(document.querySelector('.cart-item-card'), 'Select at least one item to checkout.');
+        return;
+    }
 
     const activeCats = new Set(items.map(i => (i.category||'').toLowerCase())
         .filter(c => CAT_CFG.hasOwnProperty(c)));
@@ -882,30 +887,19 @@ window.validateAndProceed = function() {
 
     if (missingCats.length) {
         const label = missingCats.map(c => CAT_CFG[c]?.label || c).join(', ');
-        showToast(`Select a shop for: ${label}`, 'error');
-
-        // Highlight each missing selector block with error state + scroll to first one
-        let firstEl = null;
-        missingCats.forEach((cat, idx) => {
-            // Flash the cs-empty-row or cs-selector-block red
-            const blocks = document.querySelectorAll('.cs-selector-block');
-            blocks.forEach(block => {
-                // Match by checking the label text inside
-                const labelEl = block.querySelector('.cs-selector-label span');
-                if (labelEl && labelEl.textContent.trim().toLowerCase() === (CAT_CFG[cat]?.label||cat).toLowerCase()) {
-                    const emptyRow = block.querySelector('.cs-empty-row');
-                    if (emptyRow) {
-                        emptyRow.classList.add('error-shake');
-                        setTimeout(() => emptyRow.classList.remove('error-shake'), 700);
-                    }
-                    if (idx === 0) firstEl = block;
-                }
-            });
+        const blocks = missingCats
+            .map(cat => document.querySelector(`.cs-selector-block[data-cat="${cat}"]`))
+            .filter(Boolean);
+        // Shake every missing selector; scroll to + highlight the first one
+        blocks.forEach(block => {
+            const emptyRow = block.querySelector('.cs-empty-row');
+            if (!emptyRow) return;
+            emptyRow.classList.remove('error-shake');
+            void emptyRow.offsetWidth;
+            emptyRow.classList.add('error-shake');
+            setTimeout(() => emptyRow.classList.remove('error-shake'), 700);
         });
-
-        if (firstEl) {
-            setTimeout(() => firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
-        }
+        flagInvalid(blocks[0], `Select a shop for: ${label}`);
         return;
     }
 
@@ -1061,7 +1055,7 @@ window.toggleNewAddress = function() {
 window.saveNewMobile = async function() {
     const input = document.getElementById('newMobileInput');
     const num   = (input?.value||'').trim();
-    if (!/^[6-9]\d{9}$/.test(num)) { showToast('Enter a valid 10-digit mobile number.', 'error'); return; }
+    if (!/^[6-9]\d{9}$/.test(num)) { flagInvalid(input, 'Enter a valid 10-digit mobile number.'); return; }
     if (!userProfile.mobileNumber) userProfile.mobileNumber = num;
     else {
         if (!userProfile.altMobiles) userProfile.altMobiles = [];
@@ -1082,7 +1076,10 @@ window.saveNewMobile = async function() {
 window.saveNewAddress = async function() {
     const street  = document.getElementById('coAddrStreet')?.value.trim();
     const city    = document.getElementById('coAddrCity')?.value.trim();
-    if (!street||!city) { showToast('Street and City are required.','error'); return; }
+    if (!street||!city) {
+        flagInvalid(document.getElementById(street ? 'coAddrCity' : 'coAddrStreet'), 'Street and City are required.');
+        return;
+    }
     const addr = {
         label:   document.getElementById('coAddrLabel')?.value.trim() || 'Home',
         street, city,
@@ -1295,8 +1292,9 @@ window.placeOrder = async function() {
     const isPickup = selectedFulfillment === 'pickup';
     const address  = isPickup ? null : (userProfile.addresses||[])[selAddrIdx];
 
-    if (!primary) { showToast('Please select a contact number.','error'); return; }
-    if (!isPickup && !address) { showToast('Please select a delivery address.','error'); return; }
+    if (!primary) { flagInvalid(document.getElementById('contactBox'), 'Please select a contact number.', 'coMobile'); return; }
+    if (!isPickup && !address) { flagInvalid(document.getElementById('coAddressSection'), 'Please select a delivery address.'); return; }
+    if (!selectedPayMethod) { flagInvalid(document.getElementById('coPaymentBlock'), 'Please choose a payment method.'); return; }
 
     const mode = effectivePayMode();
 
@@ -1728,7 +1726,26 @@ function showToast(msg, type='success') {
     el.textContent = msg;
     el.className   = `cat-toast ${type}`;
     el.classList.add('show');
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    toastTimer = setTimeout(() => el.classList.remove('show'), type === 'error' ? 4000 : 2800);
+}
+
+/* ════ VALIDATION FEEDBACK ════
+   Shows the error as a toast (always on screen), scrolls the offending field
+   into view — inside the checkout sheet too — and briefly outlines it.
+   focusId: optional input to focus once scrolled (without a second jump). */
+function flagInvalid(el, msg, focusId, block = 'center') {
+    showToast(msg, 'error');
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block });
+    el.classList.remove('cart-invalid');
+    void el.offsetWidth;                       // restart the highlight animation
+    el.classList.add('cart-invalid');
+    clearTimeout(el._invalidTimer);
+    el._invalidTimer = setTimeout(() => el.classList.remove('cart-invalid'), 1800);
+    const target = focusId ? document.getElementById(focusId)
+                 : (el.matches('input, select, textarea') ? el : null);
+    if (target) setTimeout(() => target.focus({ preventScroll: true }), reduce ? 0 : 350);
 }
 
 /* ════ UTIL ════ */

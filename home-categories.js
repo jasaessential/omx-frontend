@@ -8,7 +8,7 @@
      name, category, priceOriginal, priceDiscount,
      images: [{ url, isPrimary }]
 
-   Caching: Worker first; sessionStorage copy only when offline
+   Caching: none — Worker first, Firestore fallback, every load
    ═══════════════════════════════════════════════ */
 
 import { db } from './firebase-init.js';
@@ -58,21 +58,13 @@ function resolvePrices(item) {
 }
 
 /* ─────────────────────────────────────────────
-   CACHE HELPERS  (sessionStorage — offline fallback only)
+   CACHE HELPERS  (page memory only — nothing saved on the device)
    ───────────────────────────────────────────── */
-function cacheGet(cat) {
-    try {
-        const raw = sessionStorage.getItem(`jasa_v2_hcat_${cat}`);
-        if (!raw) return null;
-        const { items } = JSON.parse(raw);
-        return items;
-    } catch { return null; }
-}
-
+/* Device caching is disabled app-wide: always fetch fresh. Loaded items are
+   only kept in page memory (window.__jasaHomeItems) for the home search bar. */
+function cacheGet(_cat) { return null; }
 function cacheSet(cat, items) {
-    try {
-        sessionStorage.setItem(`jasa_v2_hcat_${cat}`, JSON.stringify({ ts: Date.now(), items }));
-    } catch { /* quota full — skip */ }
+    try { (window.__jasaHomeItems = window.__jasaHomeItems || {})[cat] = items; } catch { /* ignore */ }
 }
 
 /* ─────────────────────────────────────────────
@@ -84,7 +76,7 @@ async function fetchItems(cat) {
     /* 1. Cloudflare Worker — KV cache (always fetched, so admin changes show at once) */
     let res;
     try {
-        res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-cache' });
+        res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, { cache: 'no-store' });
     } catch (err) {
         console.error(`[home-categories] Worker fetch failed for ${cat}:`, err.message);
         res = null;

@@ -56,20 +56,16 @@ document.addEventListener('DOMContentLoaded', async () => {
    ════════════════════════════════ */
 const CATEGORIES = ['stationary', 'books', 'electronic', 'posters'];
 
-/* Copies saved on this device are only used when the Worker can't be reached,
-   so admin changes (prices, sizes, images) show on the next page load. */
-function readSaved(key) {
-    try { return JSON.parse(sessionStorage.getItem(key) || 'null')?.data || null; } catch (_) { return null; }
-}
-function save(key, data) {
-    try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch (_) {}
-}
+/* Device caching is disabled app-wide: nothing is saved or read back,
+   so every load shows the latest prices, sizes and images. */
+function readSaved(_key) { return null; }
+function save(_key, _data) { /* no-op */ }
 
 /* Items of one category from the Worker; null when the Worker is unreachable */
 async function fetchCategory(cat, timeoutMs) {
     try {
         const res = await fetch(`${WORKER_URL}/api/items?category=${cat}`, {
-            cache: 'no-cache', signal: AbortSignal.timeout(timeoutMs)
+            cache: 'no-store', signal: AbortSignal.timeout(timeoutMs)
         });
         if (!res.ok) return null;
         const json = await res.json();
@@ -144,7 +140,7 @@ function render() {
 
     /* Header title */
     document.getElementById('headerTitle').textContent = item.name;
-    document.title = `${item.name} — JASA Essential`;
+    document.title = `${item.name} | Order My Xerox`;
 
     /* Subtitle */
     const sub = item.brands?.[0] || item.authors?.[0]

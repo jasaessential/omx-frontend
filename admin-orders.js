@@ -150,28 +150,13 @@ async function init() {
 
 /* ════ SHOPS CACHE ════ */
 async function loadShops() {
-    /* 1. localStorage cache (24h TTL) — shared key with other pages */
-    const CACHE_KEY = 'global_shops_data_v1';
-    try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            const { data, timestamp, ttl } = JSON.parse(cached);
-            if (Date.now() - timestamp < (ttl || 86400000) && data?.length) {
-                shopsCache = data;
-                buildShopPills();
-                return;
-            }
-        }
-    } catch (_) {}
-
     /* 2. Cloudflare Worker edge cache */
     try {
-        const res = await fetch(`${WORKER_URL}/api/shops/all`, { signal: AbortSignal.timeout(4000) });
+        const res = await fetch(`${WORKER_URL}/api/shops/all`, { signal: AbortSignal.timeout(4000), cache: 'no-store' });
         if (res.ok) {
             const json = await res.json();
             const shops = json.shops || json.data || [];
             if (shops.length) {
-                localStorage.setItem(CACHE_KEY, JSON.stringify({ data: shops, timestamp: Date.now(), ttl: 86400000 }));
                 shopsCache = shops;
                 buildShopPills();
                 return;
@@ -183,7 +168,6 @@ async function loadShops() {
     try {
         const snap   = await getDocs(collection(db, 'shops'));
         shopsCache   = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: shopsCache, timestamp: Date.now(), ttl: 86400000 }));
         buildShopPills();
     } catch (err) { console.warn('[AdminOrders] shops:', err); }
 }

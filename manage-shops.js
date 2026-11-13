@@ -105,7 +105,8 @@ let shopMap = null;
 /* Pull coordinates out of a pasted Google/OSM map link (…@12.97,77.59…, ?q=12.97,77.59, ll=, mlat/mlon) */
 function parseLatLngFromLink(link) {
   if (!link) return null;
-  const pats = [/@(-?\d+\.\d+),(-?\d+\.\d+)/, /[?&](?:q|ll|query)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/, /mlat=(-?\d+\.\d+)&mlon=(-?\d+\.\d+)/, /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/];
+  /* !3d!4d is the place itself; @lat,lng is only the map view centre, so it goes last */
+  const pats = [/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, /[?&](?:q|ll|query)=(-?\d+\.\d+)(?:,|%2C)(-?\d+\.\d+)/, /mlat=(-?\d+\.\d+)&mlon=(-?\d+\.\d+)/, /@(-?\d+\.\d+),(-?\d+\.\d+)/];
   for (const re of pats) {
     const m = link.match(re);
     if (m) {

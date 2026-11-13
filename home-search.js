@@ -1,15 +1,10 @@
 /* ═══════════════════════════════════════════════
    JASA V2 — home-search.js
-   Home page search bar — reads ONLY from
-   sessionStorage / localStorage caches.
+   Home page search bar — searches the items
+   home-categories.js loaded on this page
+   (window.__jasaHomeItems, page memory only).
    Zero Firestore reads. Zero Worker calls.
-
-   Cache sources (in priority order):
-     1. sessionStorage jasa_v2_cat_{cat}  — set by
-        home-categories.js when sections load
-     2. sessionStorage jasa_v2_hcat_{cat} — set by
-        home-categories.js previews
-   If caches are empty the bar simply shows
+   If nothing is loaded yet the bar simply shows
    "Browse our categories" — no DB hit.
 
    Search logic:
@@ -31,35 +26,26 @@ const CAT_KEYS = [
     { cat: 'posters',    label: 'Wall Posters', icon: 'fa-solid fa-image',     color: '#ec4899' },
 ];
 
-const SESSION_KEYS = ['jasa_v2_cat_', 'jasa_v2_hcat_'];  // prefixes tried in order
 const MAX_RESULTS  = 8;
 const DEBOUNCE_MS  = 180;
 
 /* ────────────────────────────────
-   READ ALL ITEMS FROM CACHE
+   READ ALL ITEMS LOADED ON THIS PAGE
+   (page memory only — no device cache)
    ──────────────────────────────── */
 function readCachedItems() {
     const seen  = new Set();
     const items = [];
+    const loaded = window.__jasaHomeItems || {};
 
     for (const { cat } of CAT_KEYS) {
-        for (const prefix of SESSION_KEYS) {
-            try {
-                const raw = sessionStorage.getItem(`${prefix}${cat}`);
-                if (!raw) continue;
-                const { data, ts } = JSON.parse(raw);
-                /* Accept cache up to 2 hours old */
-                if (!data || !Array.isArray(data)) continue;
-                if (Date.now() - ts > 2 * 60 * 60 * 1000) continue;
-
-                for (const item of data) {
-                    const id = item.id || item.itemId;
-                    if (!id || seen.has(id)) continue;
-                    seen.add(id);
-                    items.push({ ...item, _cat: cat });
-                }
-                break; // got data from this prefix, skip next prefix for same cat
-            } catch (_) {}
+        const data = loaded[cat];
+        if (!Array.isArray(data)) continue;
+        for (const item of data) {
+            const id = item.id || item.itemId;
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            items.push({ ...item, _cat: cat });
         }
     }
     return items;
@@ -213,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedItems = [];
 
     /* Lazy-load cache on first focus so home-categories.js
-       has time to populate sessionStorage               */
+       has time to load items into page memory     */
     function ensureCache() {
         if (!cachedItems.length) cachedItems = readCachedItems();
     }
@@ -331,6 +317,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /* Re-load cache after home-categories sections finish rendering
-       (they populate sessionStorage — listen for the custom event) */
+       (they fill window.__jasaHomeItems — listen for the custom event) */
     window.addEventListener('hcatLoaded', () => { cachedItems = []; });
 });

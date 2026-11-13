@@ -520,3 +520,93 @@
 .ord-pay-chip--paid    { background: #dcfce7; color: #16a34a; }
 .ord-pay-chip--cod     { background: #fef3c7; color: #d97706; }
 
+
+/* ════════════════════════════════════════
+   ORDER DETAILS (customer) — pictures, item details, timeline
+   ════════════════════════════════════════ */
+.od-item-img { position: relative; }
+.od-item-img--lg { width: 72px; height: 72px; }
+.od-item-img img.od-sec-img,
+.od-photo-thumb img.od-sec-img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    max-width: none; max-height: none; object-fit: cover; z-index: 1;
+}
+/* Product card: inner blocks line up with the head's padding */
+.od-item-card:not(.od-xerox-doc-card) > :not(.od-item-head) { margin-left: 14px; margin-right: 14px; }
+.od-item-card:not(.od-xerox-doc-card) > :last-child { margin-bottom: 12px; }
+.od-item-card--off .od-item-img,
+.od-item-card--off .od-item-name { opacity: .55; }
+
+.od-items-heading {
+    margin: 16px 14px 0; font-size: .7rem; font-weight: 800; color: var(--txt3);
+    text-transform: uppercase; letter-spacing: .5px;
+    display: flex; align-items: center; gap: 6px;
+}
+.od-items-heading span {
+    background: var(--primary-light); color: var(--primary);
+    padding: 1px 8px; border-radius: 50px; font-size: .64rem;
+}
+
+.od-product-link {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 8px;
+    font-size: .74rem; font-weight: 700; color: var(--primary); text-decoration: none;
+}
+
+/* Xerox card: thumbnail beside the file name */
+.od-doc-main { display: flex; gap: 12px; align-items: flex-start; }
+.od-doc-main .od-item-img { width: 52px; height: 52px; }
+
+/* Customer's own pictures (custom posters) */
+.od-photo-block {
+    margin-top: 10px; padding: 10px 12px;
+    border: 1.5px dashed #ec4899; border-radius: 10px;
+}
+.od-photo-title { font-size: .74rem; font-weight: 800; margin-bottom: 8px; color: var(--txt1); }
+.od-photo-title i { color: #ec4899; }
+.od-photo-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.od-photo-tile { width: 84px; text-decoration: none; color: #ec4899; }
+.od-photo-thumb {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: 84px; aspect-ratio: 1 / 1.414; border-radius: 8px; overflow: hidden;
+    background: var(--bg); border: 1px solid var(--border); color: var(--border2); font-size: 1.3rem;
+}
+.od-photo-label { display: block; margin-top: 4px; font-size: .66rem; font-weight: 800; }
+.od-photo-note { margin-top: 8px; font-size: .74rem; font-weight: 600; color: var(--txt2); }
+
+/* Order status timeline */
+.od-timeline {
+    list-style: none; margin: 0; padding: 14px 10px 12px;
+    display: flex; justify-content: space-between; position: relative;
+    border-bottom: 1px solid var(--border);
+}
+.od-tl-step {
+    flex: 1; min-width: 0; position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+}
+.od-tl-step:not(:last-child)::after {
+    content: ''; position: absolute; top: 14px; left: calc(50% + 16px); right: calc(-50% + 16px);
+    height: 3px; border-radius: 3px; background: var(--border);
+}
+.od-tl-step.is-done:not(:last-child)::after { background: #16a34a; }
+.od-tl-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--border); color: #fff; font-size: .66rem;
+}
+.od-tl-step.is-done .od-tl-dot    { background: #16a34a; }
+.od-tl-step.is-current .od-tl-dot { background: var(--primary); box-shadow: 0 0 0 4px var(--primary-light); }
+.od-tl-label {
+    font-size: .58rem; font-weight: 800; color: var(--txt3);
+    text-transform: uppercase; letter-spacing: .3px; line-height: 1.2;
+}
+.od-tl-step.is-done .od-tl-label    { color: #16a34a; }
+.od-tl-step.is-current .od-tl-label { color: var(--primary); }
+.od-tl-sub { font-size: .56rem; font-weight: 600; color: var(--txt3); line-height: 1.25; padding: 0 2px; }
+.od-timeline-cancel {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin: 12px 14px; padding: 10px 12px; border-radius: 10px;
+    background: #fff1f2; border: 1.5px dashed #fda4af; color: #be123c;
+}
+.od-timeline-cancel > i { font-size: 1.1rem; margin-top: 1px; }
+.od-tl-cancel-title { font-size: .82rem; font-weight: 800; }
+.od-tl-cancel-sub   { font-size: .72rem; font-weight: 600; opacity: .85; line-height: 1.4; }

@@ -4,11 +4,28 @@
     <meta charset="UTF-8">
     <script src="head-cache.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xerox Order — JASA Essential</title>
+    <title>Online Xerox &amp; Print Documents Online | Order My Xerox</title>
+    <meta name="description" content="Upload PDFs or photos and order xerox, photocopy, colour printing and binding online. Choose pages, copies and paper size, then get it delivered.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <link rel="canonical" href="https://ordermyxerox.com/xerox-order">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Order My Xerox">
+    <meta property="og:title" content="Online Xerox &amp; Print Documents Online | Order My Xerox">
+    <meta property="og:description" content="Upload PDFs or photos and order xerox, photocopy, colour printing and binding online. Choose pages, copies and paper size, then get it delivered.">
+    <meta property="og:url" content="https://ordermyxerox.com/xerox-order">
+    <meta property="og:image" content="https://ordermyxerox.com/assets/logo.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="Order My Xerox logo">
+    <meta property="og:locale" content="en_IN">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Online Xerox &amp; Print Documents Online | Order My Xerox">
+    <meta name="twitter:description" content="Upload PDFs or photos and order xerox, photocopy, colour printing and binding online. Choose pages, copies and paper size, then get it delivered.">
+    <meta name="twitter:image" content="https://ordermyxerox.com/assets/logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="xerox-order.css?v=20261006b">
+    <link rel="stylesheet" href="xerox-order.css?v=20261113a">
     <link rel="stylesheet" href="wallet-checkout.css?v=20260925a">
 
     <!-- PDF.js for page counting -->
@@ -86,22 +103,58 @@
         <div id="xoLocationOverlay">
             <div class="xo-location-card" id="xoLocationCard">
 
-                <!-- Step indicators: Where & how (1) → Shop (4) → Upload (5). Ids kept so the step helpers still work. -->
+                <!-- Step indicators: Upload & options (1) → Where & how (2) → Shop (3).
+                     The ids are historical (xoStep5Dot = upload, xoStep1Dot = location, xoStep4Dot = shop). -->
                 <div class="xo-loc-steps">
-                    <div class="xo-loc-step active" id="xoStep1Dot"><span>1</span></div>
+                    <div class="xo-loc-step active" id="xoStep5Dot" title="Upload &amp; print options"><span>1</span></div>
                     <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep4Dot"><span>2</span></div>
+                    <div class="xo-loc-step" id="xoStep1Dot" title="Your location"><span>2</span></div>
                     <div class="xo-loc-step-line"></div>
-                    <div class="xo-loc-step" id="xoStep5Dot"><span>3</span></div>
+                    <div class="xo-loc-step" id="xoStep4Dot" title="Choose shop"><span>3</span></div>
                 </div>
+                <div class="xo-loc-step-caption" id="xoStepCaption">Step 1 of 3 · Upload &amp; print options</div>
 
-                <!-- ── STEP 1: Location ── -->
-                <div id="xoLocStep1">
+                <!-- ── STEP 1 (upload first): Upload & Configure ── -->
+                <div id="xoLocStep5">
+
+                    <!-- Shop note / selected shop banner (filled by renderStep5) -->
+                    <div class="xo-s5-shop-banner" id="xoS5ShopBanner"></div>
+
+                    <!-- Upload trigger -->
+                    <div class="xo-s5-upload-zone" id="xoS5UploadZone" onclick="triggerUploadStep5()">
+                        <i class="fa-solid fa-file-arrow-up xo-s5-upload-icon"></i>
+                        <div class="xo-s5-upload-text">Tap to select PDF or images</div>
+                        <div class="xo-s5-upload-hint">PDF · JPG · PNG — up to 50 MB each</div>
+                    </div>
+
+                    <!-- Hidden file input for the upload step -->
+                    <input type="file" id="xoS5FileInput" class="xo-hidden" multiple accept=".pdf,.jpg,.jpeg,.png">
+
+                    <!-- Doc config cards (injected by renderStep5Docs) -->
+                    <div id="xoS5DocCards"></div>
+
+                    <!-- Upload rows + subtotal strip -->
+                    <div id="xoS5Summary" style="display:none;">
+                        <div class="xo-s5-subtotal-bar" id="xoS5SubtotalBar"></div>
+                        <div id="xoS5UploadRows" class="xo-upload-rows" style="margin-top:10px;"></div>
+                    </div>
+
+                    <!-- Footer: proceed to location + shop -->
+                    <div class="xo-s5-footer">
+                        <button class="xo-location-btn xo-loc-next-btn xo-btn-pending" id="xoStep5ProceedBtn"
+                                onclick="goFromUploadToLocation()">
+                            Next: location &amp; shop <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div><!-- end xoLocStep5 -->
+
+                <!-- ── STEP 2: Location ── -->
+                <div id="xoLocStep1" style="display:none;">
                     <div class="xo-location-icon">
                         <i class="fa-solid fa-location-dot"></i>
                     </div>
                     <h2 class="xo-location-title">Where are you located?</h2>
-                    <p class="xo-location-sub">Tell us where you are and how you want your prints — we'll show the shops near you.</p>
+                    <p class="xo-location-sub">Tell us where you are and how you want your prints — next you'll pick from the shops nearest to you.</p>
 
                     <div class="xo-location-form">
                         <!-- Map: pin your spot (GPS or on the map) to see the nearest shops first -->
@@ -202,14 +255,19 @@
                     </div>
                         </div>
 
-                        <button class="xo-location-btn" id="xoLocationConfirmBtn" onclick="goToStep2()" disabled>
-                            Next <i class="fa-solid fa-arrow-right"></i>
-                        </button>
+                        <div class="xo-loc-step2-footer">
+                            <button class="xo-loc-back-btn" onclick="goBackToUpload()">
+                                <i class="fa-solid fa-arrow-left"></i> Back
+                            </button>
+                            <button class="xo-location-btn xo-loc-next-btn xo-btn-pending" id="xoLocationConfirmBtn" onclick="goToStep2()">
+                                Next <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
                         <div id="xoStep1ShopBadge" style="display:none;margin-top:12px;font-size:.82rem;font-weight:700;color:var(--primary);text-align:center;"></div>
                     </div>
                 </div>
 
-                <!-- ── STEP 4: Pick your shop ── -->
+                <!-- ── STEP 3: Pick your shop (last, then review & checkout) ── -->
                 <div id="xoLocStep4" style="display:none;">
                     <div class="xo-loc-s4-header">
                         <div class="xo-location-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;margin-bottom:0;flex-shrink:0;">
@@ -217,7 +275,7 @@
                         </div>
                         <div style="flex:1;min-width:0;">
                             <h2 class="xo-location-title" style="margin:0 0 2px;">Pick your shop</h2>
-                            <p class="xo-location-sub" style="margin:0;">Shops available near your location</p>
+                            <p class="xo-location-sub" style="margin:0;">Nearest shops first — tap one, then review your order</p>
                         </div>
                         <div class="xo-picker-count" id="xoPickerCount" style="display:none;">
                             <span id="xoPickerCountNum">0</span>
@@ -225,55 +283,24 @@
                         </div>
                     </div>
 
+                    <!-- Why this list (nearest / default shop / no location) -->
+                    <div class="xo-picker-note" id="xoPickerNote" style="display:none;"></div>
+
                     <!-- Shop list -->
                     <div class="xo-picker-shops" id="xoPickerShopList"></div>
+
+                    <!-- Price with the chosen shop -->
+                    <div class="xo-picker-total" id="xoPickerTotal" style="display:none;"></div>
 
                     <div class="xo-loc-step2-footer">
                         <button class="xo-loc-back-btn" onclick="goToStep3Back()">
                             <i class="fa-solid fa-arrow-left"></i> Back
                         </button>
-                        <button class="xo-location-btn xo-loc-next-btn" id="xoStep4NextBtn" onclick="goToStep5()" disabled>
-                            <i class="fa-solid fa-arrow-right"></i> Next
+                        <button class="xo-location-btn xo-loc-next-btn xo-btn-pending" id="xoStep4NextBtn" onclick="confirmLocationAndProceed()">
+                            <i class="fa-solid fa-circle-check"></i> Review &amp; checkout
                         </button>
                     </div>
                 </div><!-- end xoLocStep4 -->
-
-                <!-- ── STEP 5: Upload & Configure ── -->
-                <div id="xoLocStep5" style="display:none;">
-
-                    <!-- Selected shop banner -->
-                    <div class="xo-s5-shop-banner" id="xoS5ShopBanner"></div>
-
-                    <!-- Upload trigger -->
-                    <div class="xo-s5-upload-zone" id="xoS5UploadZone" onclick="triggerUploadStep5()">
-                        <i class="fa-solid fa-file-arrow-up xo-s5-upload-icon"></i>
-                        <div class="xo-s5-upload-text">Tap to select PDF or images</div>
-                        <div class="xo-s5-upload-hint">PDF · JPG · PNG — up to 50 MB each</div>
-                    </div>
-
-                    <!-- Hidden file input for step 5 -->
-                    <input type="file" id="xoS5FileInput" class="xo-hidden" multiple accept=".pdf,.jpg,.jpeg,.png">
-
-                    <!-- Doc config cards (injected by renderStep5Docs) -->
-                    <div id="xoS5DocCards"></div>
-
-                    <!-- Upload rows + subtotal strip -->
-                    <div id="xoS5Summary" style="display:none;">
-                        <div class="xo-s5-subtotal-bar" id="xoS5SubtotalBar"></div>
-                        <div id="xoS5UploadRows" class="xo-upload-rows" style="margin-top:10px;"></div>
-                    </div>
-
-                    <!-- Footer: back + proceed -->
-                    <div class="xo-s5-footer">
-                        <button class="xo-loc-back-btn" onclick="goToStep4Back()">
-                            <i class="fa-solid fa-arrow-left"></i> Back
-                        </button>
-                        <button class="xo-location-btn xo-loc-next-btn" id="xoStep5ProceedBtn"
-                                onclick="confirmLocationAndProceed()" disabled>
-                            <i class="fa-solid fa-circle-check"></i> Place Order
-                        </button>
-                    </div>
-                </div><!-- end xoLocStep5 -->
 
             </div>
         </div>
@@ -536,7 +563,7 @@
     <!-- ════ SCRIPTS ════ -->
     <script src="app.js"></script>
     <script type="module" src="auth-header.js"></script>
-    <script type="module" src="xerox-order.js?v=20261006b"></script>
+    <script type="module" src="xerox-order.js?v=20261113a"></script>
     <!-- Razorpay Checkout SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </body>

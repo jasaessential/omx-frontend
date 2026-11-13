@@ -19,7 +19,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { createMapPicker, getCurrentPosition, haversineKm, hasCoords } from './geo-map.js';
+import { createMapPicker, getCurrentPosition, haversineKm, hasCoords, shopCoords, APPROX_LOCATION_M } from './geo-map.js';
 import { quoteOrder, priceChanged, cancelUnpaidOrders } from './order-quote-client.js';
 import { validateCoupon, redeemCoupon, releaseCoupon, calcDiscount }
     from './coupon-client.js';
@@ -32,6 +32,7 @@ let uploadedFiles  = [];   // { id, fileObj, name, type, pages, config, prices, 
 let xeroxConfig    = { paper: [], binding: [], lamination: [] };
 let allShops       = [];   // location-filtered, used by main page
 let allShopsRaw    = [];   // all xerox shops unfiltered, used by step-4 picker
+let allShopsAll    = [];   // every active shop (any service) — only used to find the default shop
 let selectedShopId = null;
 let userProfile    = { fullName: '', mobileNumber: '', altMobiles: [], addresses: [] };
 let selAddrIdx     = 0;
@@ -231,6 +232,7 @@ let isOthersDistrict  = false;     // true when user selected "Others" at distri
 let isOthersCity      = false;     // true when user selected "Others" at city level
 let othersFastPath    = false;     // true when "Others" skipped steps 2-4 (no shops assigned to it)
 let _wizardShopsReady = null;      // promise for the wizard's initial fetchShops()
+let _xeroxCfgReady    = null;      // promise for the wizard's initial fetchXeroxConfig()
 let otherShopsConfig  = null;      // { stationary, books, xerox, kits } — admin-set fallback shops
 const LOCATION_KEY    = 'jasa_xerox_location_v3';
 const PIN_KEY         = 'jasa_xerox_pin_v1';
@@ -239,15 +241,31 @@ const PIN_KEY         = 'jasa_xerox_pin_v1';
    The customer's pinned position (GPS or map). With a pin: shops that have coordinates
    are sorted nearest-first and show their distance; delivery is limited to each shop's
    radius. With a pin and no state picked, only shops whose radius covers the pin are listed. */
+/* A saved pin is only trusted for PIN_MAX_AGE_MS: an old pin (another day, another
+   place) silently used as the origin made every distance wrong. Pins saved before
+   this change have no `at` and are dropped. */
+const PIN_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 let userPin = null;
 try {
     const p = JSON.parse(localStorage.getItem(PIN_KEY) || 'null');
-    if (p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) userPin = p;
+    if (p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.at) && Date.now() - p.at < PIN_MAX_AGE_MS) {
+        userPin = { lat: p.lat, lng: p.lng };
+    } else if (p) {
+        localStorage.removeItem(PIN_KEY);
+    }
 } catch (_) {}
 let locMapCtl = null;                 // map picker controller (step 1)
 const shopDistKm = new Map();         // shopId -> km from the pin (kept out of the shop objects/caches)
-const DEFAULT_RADIUS_KM = 10;
+const DEFAULT_RADIUS_KM = 10;         // a shop's delivery radius when the admin set none
+const NEARBY_RADIUS_KM  = 15;         // shops further than this from the customer are not "nearby" (pickup)
+const MAX_SHOPS_LISTED  = 10;         // the shop step lists at most this many (nearest first)
+/* Shown when no shop is nearby or the customer's location is unknown. There is no
+   id/flag for it in the shop data, so it is found by name (case/space-insensitive),
+   then by the admin's "Others" fallback xerox shop (KV other-shops config). */
+const DEFAULT_SHOP_NAME = 'OrderMyXerox India';
 const shopRadius = s => Number(s.serviceRadiusKm) > 0 ? Number(s.serviceRadiusKm) : DEFAULT_RADIUS_KM;
+/* km from the customer's pin to a shop, or null (no pin / shop not pinned) */
+const kmToShop = s => { const c = userPin && shopCoords(s); return c ? haversineKm(userPin, c) : null; };
 
 /* ════ PAYMENT CONFIG STATE ════ */
 // Fetched fresh from KV on every checkout open — no localStorage cache.
@@ -340,54 +358,67 @@ async function initLocationPicker() {
     /* Pre-fetch shops and xerox config in the background while the user
        fills in steps 1-3, so allShops is ready when step 4 is shown.
        Both calls are fire-and-forget here — errors are handled inside them. */
-    fetchXeroxConfig();
+    _xeroxCfgReady    = fetchXeroxConfig();
     _wizardShopsReady = fetchShops();
     fetchOtherShopsConfig();
 
+    /* Upload comes first: the customer adds documents and sets print options,
+       then gives the location and picks the shop last. */
+    showWizardStep('upload');
+    _xeroxCfgReady.then(() => { if (_inStep5()) renderStep5(); });
+
     /* Fetch locations: worker edge cache first, Firestore fallback */
     try {
-        let locationsLoaded = false;
-
-        /* 1. Try Cloudflare Worker edge cache */
-        try {
-            const res = await fetch(`${WORKER_URL}/api/locations/all`, {
-                signal: AbortSignal.timeout(4000)
-            });
-            if (res.ok) {
-                const json = await res.json();
-                if (json.states?.length) {
-                    allStates    = [...json.states]   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-                    allDistricts = [...json.districts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-                    allCities    = [...json.cities]   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-                    locationsLoaded = true;
-                }
-            }
-        } catch (_) { /* worker unavailable — fall through */ }
-
-        /* 2. Firestore fallback */
-        if (!locationsLoaded) {
-            const [statesSnap, districtsSnap, citiesSnap] = await Promise.all([
-                getDocs(collection(db, 'states')),
-                getDocs(collection(db, 'districts')),
-                getDocs(collection(db, 'cities'))
-            ]);
-            allStates    = statesSnap.docs   .map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-            allDistricts = districtsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-            allCities    = citiesSnap.docs   .map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        }
-
-        const stateSelect = document.getElementById('xoStateSelect');
-        stateSelect.innerHTML =
-            '<option value="">— Select your state —</option>' +
-            allStates.map(s => `<option value="${s.id}">${s.name}</option>`).join('') +
-            '<option value="__others__">Others</option>';
-
-        stateSelect.addEventListener('change', onStateChange);
-
+        await loadLocationOptions();
     } catch (err) {
         console.error('[Location] fetch failed:', err);
         hideLocationOverlay();
         await initMainPage();
+    }
+}
+
+/* State / district / city lists for the location step (worker edge cache first,
+   Firestore fallback). Throws when neither answers. */
+async function loadLocationOptions() {
+    let locationsLoaded = false;
+
+    /* 1. Try Cloudflare Worker edge cache */
+    try {
+        const res = await fetch(`${WORKER_URL}/api/locations/all`, {
+            signal: AbortSignal.timeout(4000)
+        });
+        if (res.ok) {
+            const json = await res.json();
+            if (json.states?.length) {
+                allStates    = [...json.states]          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                allDistricts = [...(json.districts || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                allCities    = [...(json.cities || [])]   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                locationsLoaded = true;
+            }
+        }
+    } catch (_) { /* worker unavailable — fall through */ }
+
+    /* 2. Firestore fallback */
+    if (!locationsLoaded) {
+        const [statesSnap, districtsSnap, citiesSnap] = await Promise.all([
+            getDocs(collection(db, 'states')),
+            getDocs(collection(db, 'districts')),
+            getDocs(collection(db, 'cities'))
+        ]);
+        allStates    = statesSnap.docs   .map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        allDistricts = districtsSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        allCities    = citiesSnap.docs   .map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+
+    const stateSelect = document.getElementById('xoStateSelect');
+    stateSelect.innerHTML =
+        '<option value="">— Select your state —</option>' +
+        allStates.map(s => `<option value="${h(s.id)}">${h(s.name)}</option>`).join('') +
+        '<option value="__others__">Others</option>';
+
+    if (!stateSelect._wired) {
+        stateSelect._wired = true;
+        stateSelect.addEventListener('change', onStateChange);
     }
 }
 
@@ -402,7 +433,7 @@ function paintPinText() {
 
 function setPin(p) {
     userPin = { lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5 };
-    try { localStorage.setItem(PIN_KEY, JSON.stringify(userPin)); } catch (_) {}
+    try { localStorage.setItem(PIN_KEY, JSON.stringify({ ...userPin, at: Date.now() })); } catch (_) {}
     paintPinText();
     refreshStep1();
 }
@@ -424,6 +455,13 @@ window.useMyLocation = async function() {
         const p = await getCurrentPosition();
         setPin(p);
         locMapCtl?.setValue(userPin, 17);
+        /* Wi-Fi / IP based fixes (most laptops) can be kilometres off — that made
+           shop distances look wrong. Ask the customer to fix the pin on the map. */
+        if (p.accuracy > APPROX_LOCATION_M) {
+            showToast(`Your device gave only a rough location (within about ${(p.accuracy / 1000).toFixed(1)} km). Drag the pin to your exact spot for correct distances.`, 'warning');
+            const host = document.getElementById('xoMapHost');
+            if (host && host.style.display === 'none') window.toggleLocationMap();
+        }
     } catch (e) {
         showToast(e.message || 'Could not get your location.', 'error');
         const host = document.getElementById('xoMapHost');
@@ -471,9 +509,31 @@ function refreshStep1() {
     const ok    = hasCompleteLocation();
     const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
     if (prefs) prefs.style.display = ok ? 'block' : 'none';
-    /* "Others" may take the fast path to upload, so it only needs the location */
-    if (btn) btn.disabled = !(ok && (anyOthers || (selectedPlaceType && selectedOrderType)));
+    /* "Others" may take the fast path, so it only needs the location.
+       The button stays clickable so a click explains what is missing. */
+    setSoftDisabled(btn, !(ok && (anyOthers || (selectedPlaceType && selectedOrderType))));
     updateWizardStepCounts();
+}
+
+/* A "not ready yet" look for a button that stays clickable — clicking it runs the
+   validation, which shows a toast and points at the missing field. */
+function setSoftDisabled(btn, pending) {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.toggle('xo-btn-pending', !!pending);
+}
+
+/* Validation feedback: toast + scroll to + highlight the field (and focus it if it can take focus). */
+function flagField(el, msg, type = 'warning') {
+    if (msg) showToast(msg, type);
+    if (!el) return;
+    el.classList.remove('xo-field-error');
+    void el.offsetWidth;                       /* restart the shake animation */
+    el.classList.add('xo-field-error');
+    setTimeout(() => el.classList.remove('xo-field-error'), 2200);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const focusable = el.matches('select, input, button, textarea') ? el : el.querySelector('select:not([disabled]), input:not([type=hidden]):not([disabled])');
+    if (focusable && focusable.offsetParent !== null) { try { focusable.focus({ preventScroll: true }); } catch (_) {} }
 }
 
 function onStateChange() {
@@ -489,7 +549,7 @@ function onStateChange() {
     isOthersState      = false;
     isOthersDistrict   = false;
     isOthersCity       = false;
-    confirmBtn.disabled = true;
+    setSoftDisabled(confirmBtn, true);
     cityField.style.display     = 'none';
     districtField.style.display = 'none';
     refreshStep1();
@@ -528,7 +588,7 @@ function onDistrictChange() {
     isOthersCity = false;
     cityField.style.display = 'none';
     selectedCityId = null;
-    confirmBtn.disabled = true;
+    setSoftDisabled(confirmBtn, true);
     refreshStep1();
 
     if (!districtId) {
@@ -665,10 +725,13 @@ function matchShopWithFilters(s, filters = {}) {
 
     /* ── Map pin ────────────────────────────────────────────────────────── */
     if (userPin) {
-        const d = hasCoords(s) ? haversineKm(userPin, { lat: Number(s.lat), lng: Number(s.lng) }) : null;
+        const d = kmToShop(s);
         if (!stateId) {
-            /* Map-only location: shop must have a pin and cover the customer's spot */
-            if (d === null || d > shopRadius(s)) return false;
+            /* Map-only location: the shop must have a pin and be near — within its
+               delivery radius for delivery, within NEARBY_RADIUS_KM for pickup */
+            if (d === null) return false;
+            const reach = orderType === 'delivery' ? shopRadius(s) : NEARBY_RADIUS_KM;
+            if (d > reach) return false;
         } else if (orderType === 'delivery' && d !== null && d > shopRadius(s)) {
             /* Delivery cannot reach this far (pickup is still allowed) */
             return false;
@@ -771,13 +834,17 @@ function updateWizardStepCounts() {
         const bothPicked = !!(selectedPlaceType && selectedOrderType);
         const step1Count = getMatchingShopsCount(bothPicked ? {} : { placeType: null, orderType: null });
         const badge = document.getElementById('xoStep1ShopBadge');
+        const def = step1Count ? null : findDefaultShop();
         if (badge) {
             badge.style.display = 'block';
-            badge.innerHTML = `<i class="fa-solid fa-store" style="margin-right:4px;"></i> ${step1Count} shop${step1Count === 1 ? '' : 's'} available in this area`;
-            badge.style.color = step1Count > 0 ? 'var(--primary, #2D8CF0)' : '#ef4444';
+            badge.innerHTML = def
+                ? `<i class="fa-solid fa-store" style="margin-right:4px;"></i> No shop nearby yet — you can order from ${h(def.name || DEFAULT_SHOP_NAME)}`
+                : `<i class="fa-solid fa-store" style="margin-right:4px;"></i> ${step1Count} shop${step1Count === 1 ? '' : 's'} available${userPin && !selectedStateId ? ` within ${NEARBY_RADIUS_KM} km` : ' in this area'}`;
+            badge.style.color = step1Count > 0 ? 'var(--primary, #2D8CF0)' : (def ? '#d97706' : '#ef4444');
         }
         const btn1 = document.getElementById('xoLocationConfirmBtn');
-        if (btn1) btn1.innerHTML = `Next (${step1Count} shop${step1Count === 1 ? '' : 's'}) <i class="fa-solid fa-arrow-right"></i>`;
+        const shown = Math.min(step1Count, MAX_SHOPS_LISTED) || (def ? 1 : 0);
+        if (btn1) btn1.innerHTML = `Next: pick shop (${shown}) <i class="fa-solid fa-arrow-right"></i>`;
     }
 
     // Step 2 counts (Shop vs College)
@@ -847,65 +914,153 @@ window.confirmLocation = async function() {
     await initMainPage();
 };
 
-/* ─── Step 4 → Step 5 ─── */
-window.goToStep5 = function() {
-    if (!selectedPickerShopId) return;
-    _hideStep('xoLocStep4');
-    _showStep('xoLocStep5');
-    _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markDone('xoStep3Dot');
-    _markDone('xoStep4Dot');
-    _markActive('xoStep5Dot');
+/* ════ WIZARD STEPS ════
+   Upload first, shop last (same order as the mobile app):
+     1 'upload'   #xoLocStep5 (dot xoStep5Dot) — documents + print options
+     2 'location' #xoLocStep1 (dot xoStep1Dot) — where + shop type + delivery/pickup
+     3 'shop'     #xoLocStep4 (dot xoStep4Dot) — nearest shops → review & checkout
+   The panel/dot ids are historical; only their order on screen changed.       */
+const WIZARD_STEPS = [
+    { key: 'upload',   panel: 'xoLocStep5', dot: 'xoStep5Dot', caption: 'Upload & print options' },
+    { key: 'location', panel: 'xoLocStep1', dot: 'xoStep1Dot', caption: 'Your location' },
+    { key: 'shop',     panel: 'xoLocStep4', dot: 'xoStep4Dot', caption: 'Choose your shop' },
+];
+
+function showWizardStep(key, scroll = false) {
+    const idx = Math.max(0, WIZARD_STEPS.findIndex(s => s.key === key));
+    WIZARD_STEPS.forEach((s, i) => {
+        if (i === idx) { _showStep(s.panel); _markActive(s.dot); }
+        else { _hideStep(s.panel); if (i < idx) _markDone(s.dot); else _markIdle(s.dot); }
+    });
+    const cap = document.getElementById('xoStepCaption');
+    if (cap) cap.textContent = `Step ${idx + 1} of ${WIZARD_STEPS.length} · ${WIZARD_STEPS[idx].caption}`;
+    if (scroll) document.getElementById('xoLocationCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const isPendingUpload = f => ['pending', 'uploading', 'paused'].includes(f.uploadStatus);
+
+/* Upload step is complete: at least one file, every file uploaded / marked
+   "later" / WhatsApp, and the doc settings are valid. Shows what is missing. */
+function checkUploadStep() {
+    if (!uploadedFiles.length) {
+        flagField(document.getElementById('xoS5UploadZone'), 'Add at least one document to print.');
+        return false;
+    }
+    const pending = uploadedFiles.map((f, i) => ({ f, i })).filter(({ f }) => isPendingUpload(f));
+    if (pending.length) {
+        pending.forEach(({ i }) => {
+            const row = document.getElementById(`s5UploadRow-${i}`);
+            if (row) { row.classList.add('error'); setTimeout(() => row.classList.remove('error'), 1600); }
+        });
+        const busy = pending.some(({ f }) => f.uploadStatus === 'uploading');
+        flagField(document.getElementById(`s5UploadRow-${pending[0].i}`) || document.getElementById('xoS5UploadRows'),
+            busy ? 'Please wait for the upload to finish.'
+                 : `"${h(pending[0].f.name)}": tap Upload Now, Upload Later or Send via WhatsApp.`);
+        return false;
+    }
+    return checkDocConfigs();
+}
+
+/* Step 1 (upload) → Step 2 (location) */
+window.goFromUploadToLocation = function() {
+    if (!checkUploadStep()) return;
+    showWizardStep('location', true);
+    refreshStep1();
+};
+
+/* Step 2 → Step 1. Files and settings are kept. */
+window.goBackToUpload = function() {
+    /* A shop picked on step 3 now drives the paper list — keep the settings valid for it */
+    if (selectedPickerShopId && shopById(selectedPickerShopId)) {
+        const changed = fitDocsToShop(selectedPickerShopId);
+        if (changed.length) showToast(`Changed for the shop you picked: ${h(changed.join('; '))}.`, 'info');
+    }
+    showWizardStep('upload', true);
     renderStep5();
 };
 
-/* ─── Step 5 → Step 4 (or Step 1 when in "others" mode) ─── */
-window.goToStep4Back = function() {
-    _hideStep('xoLocStep5');
-    /* In the "Others" fast-path steps 2/3/4 were skipped — go back to step 1 */
-    if (othersFastPath) {
-        _showStep('xoLocStep1');
-        _markActive('xoStep1Dot');
-        _markIdle('xoStep2Dot');
-        _markIdle('xoStep3Dot');
-        _markIdle('xoStep4Dot');
-        _markIdle('xoStep5Dot');
-        uploadedFiles.length = 0;
+/* Step 2 (location) → Step 3 (shop list) */
+window.goToStep2 = async function() {
+    const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
+
+    if (!hasCompleteLocation()) {
+        const target = !selectedStateId ? 'xoStateWrap'
+                     : (!isOthersState && !selectedDistrictId) ? 'xoDistrictWrap'
+                     : 'xoCityWrap';
+        flagField(document.getElementById(target),
+            'Tap "Use my location", pick your spot on the map, or choose your state, district and city.');
         return;
     }
-    _showStep('xoLocStep4');
-    _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markDone('xoStep3Dot');
-    _markActive('xoStep4Dot');
-    _markIdle('xoStep5Dot');
-    /* Clear any files added in step 5 so user starts fresh if they come back */
-    uploadedFiles.length = 0;
+
+    othersFastPath = false;
+    if (anyOthers) {
+        /* Shops assigned to this "Others" bucket in Manage Shops → normal list.
+           None assigned → only the KV-configured fallback shop (or the default shop). */
+        if (!allShopsRaw?.length && _wizardShopsReady) {
+            try { await _wizardShopsReady; } catch (_) {}
+        }
+        const key = othersKeyForSelection(selectedStateId, selectedDistrictId, selectedCityId);
+        if (!hasAssignedOthersShops(key)) {
+            othersFastPath = true;
+            if (!selectedPlaceType) selectedPlaceType = 'shop';
+            if (!selectedOrderType) { selectedOrderType = 'pickup'; window.selectedOrderType = 'pickup'; }
+            if (!otherShopsConfig) await fetchOtherShopsConfig();
+            window.goToStep4();
+            return;
+        }
+    }
+
+    if (!selectedPlaceType) {
+        flagField(document.getElementById('xoOptShop')?.parentElement, 'Choose the type of place: Xerox Shop or College / Campus.');
+        return;
+    }
+    if (!selectedOrderType) {
+        flagField(document.getElementById('xoOptDelivery')?.parentElement, 'Choose Home Delivery or Pick Up Myself.');
+        return;
+    }
+    window.goToStep4();
 };
 
-/* ─── Step 5 → confirm + proceed to checkout ─── */
+/* → Step 3: shop list (a shop picked earlier stays picked if it is still listed) */
+window.goToStep4 = function() {
+    showWizardStep('shop', true);
+    renderStep4Shops();
+};
+
+/* Step 3 → Step 2 */
+window.goToStep3Back = function() {
+    showWizardStep('location', true);
+    refreshStep1();
+};
+
+/* Step 3 → review & checkout (shop chosen last) */
 window.confirmLocationAndProceed = function() {
-    if (!uploadedFiles.length) {
-        showToast('Please add at least one file.', 'warning');
+    /* Documents must still be complete (they were checked on step 1) */
+    if (!uploadedFiles.length || uploadedFiles.some(isPendingUpload)) {
+        showWizardStep('upload', true);
+        renderStep5();
+        checkUploadStep();
         return;
     }
-    const hasPending = uploadedFiles.some(f =>
-        f.uploadStatus === 'pending' || f.uploadStatus === 'uploading'
-    );
-    if (hasPending) {
-        showToast('Upload or mark all files before proceeding.', 'warning');
-        /* Shake pending rows */
-        uploadedFiles.forEach((f, i) => {
-            if (f.uploadStatus === 'pending' || f.uploadStatus === 'uploading') {
-                const row = document.getElementById(`s5UploadRow-${i}`);
-                if (row) { row.classList.add('error'); setTimeout(() => row.classList.remove('error'), 1600); }
-            }
-        });
+    const shop = selectedPickerShopId ? shopById(selectedPickerShopId) : null;
+    if (!shop) {
+        selectedPickerShopId = null;
+        flagField(document.getElementById('xoPickerShopList'), 'Please choose a shop for your order.');
         return;
     }
-    /* Check College Shop minimum order threshold (₹50) */
+    if (selectedOrderType === 'delivery' && shop.homeDelivery !== true) {
+        flagField(document.getElementById('xoPickerShopList'),
+            `${h(shop.name || 'This shop')} offers pickup only. Go back and choose "Pick Up Myself", or pick another shop.`);
+        return;
+    }
+
+    /* Papers / finishes this shop doesn't offer are switched to ones it does */
+    const changed = fitDocsToShop(selectedPickerShopId);
+    if (changed.length) {
+        showToast(`${h(shop.name || 'This shop')} doesn't offer every option you chose, so we changed: ${h(changed.join('; '))}. Check the summary.`, 'info');
+    }
     if (!checkDocConfigs() || !checkCollegeMinOrder()) return;
+
     /* Save location to localStorage then boot the main page behind the wizard */
     const anyOthers  = isOthersState || isOthersDistrict || isOthersCity;
     const state      = isOthersState ? null : allStates.find(s => s.id === selectedStateId);
@@ -942,6 +1097,7 @@ window.confirmLocationAndProceed = function() {
     /* allShops must be populated — it was fetched during wizard init */
     allShops = filterShopsByLocation(allShopsRaw);
     calculatePrices();
+    initFileInput();   /* the main page's "Add Files" button needs its input wired */
     /* Show the main page sections (landing hidden, config visible) */
     const landingEl   = document.getElementById('xoLanding');
     const configEl    = document.getElementById('xoConfigSection');
@@ -967,100 +1123,6 @@ function _markActive(dotId) { const d = document.getElementById(dotId); if (d) {
 function _markIdle(dotId)   { const d = document.getElementById(dotId); if (d) { d.classList.remove('active','done'); } }
 function _showStep(id)      { const el = document.getElementById(id); if (el) { el.style.display = 'block'; el.classList.add('xo-step-in'); } }
 function _hideStep(id)      { const el = document.getElementById(id); if (el) { el.style.display = 'none'; el.classList.remove('xo-step-in'); } }
-
-/* ── "Others" fast-path: skip steps 2/3/4, go straight to upload (step 5) ── */
-function _skipToOthersStep5() {
-    /* Set synthetic defaults for required state vars */
-    if (!selectedPlaceType)  selectedPlaceType  = 'shop';
-    if (!selectedOrderType) { selectedOrderType = 'pickup'; window.selectedOrderType = 'pickup'; }
-
-    /* Use admin-configured xerox fallback shop; if none configured yet, proceed
-       with an empty shop so the user can still upload and the order is visible */
-    const fallbackId = otherShopsConfig?.xerox || null;
-    selectedPickerShopId = fallbackId;
-
-    /* If otherShopsConfig not yet fetched, wait and retry once */
-    if (!otherShopsConfig) {
-        fetchOtherShopsConfig().then(() => {
-            selectedPickerShopId = otherShopsConfig?.xerox || null;
-            _doJumpToStep5();
-        });
-        return;
-    }
-    _doJumpToStep5();
-}
-
-function _doJumpToStep5() {
-    _hideStep('xoLocStep1');
-    _hideStep('xoLocStep2');
-    _hideStep('xoLocStep3');
-    _hideStep('xoLocStep4');
-    _showStep('xoLocStep5');
-    _markDone('xoStep1Dot');
-    _markDone('xoStep2Dot');
-    _markDone('xoStep3Dot');
-    _markDone('xoStep4Dot');
-    _markActive('xoStep5Dot');
-    renderStep5();
-}
-
-/* Step 1 → Step 2 (or step 5 if "Others" selected at any location level) */
-window.goToStep2 = async function() {
-    /* Determine if any "Others" was chosen */
-    const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
-
-    /* Validate: need at least a state selection */
-    const hasLocation = hasCompleteLocation();
-    if (!hasLocation) return;
-
-    othersFastPath = false;
-    if (anyOthers) {
-        /* Shops assigned to this "Others" bucket in Manage Shops → normal flow.
-           None assigned → legacy fast-path to the KV-configured fallback shop. */
-        if (!allShopsRaw?.length && _wizardShopsReady) {
-            try { await _wizardShopsReady; } catch (_) {}
-        }
-        const key = othersKeyForSelection(selectedStateId, selectedDistrictId, selectedCityId);
-        if (!hasAssignedOthersShops(key)) {
-            othersFastPath = true;
-            _skipToOthersStep5();
-            return;
-        }
-    }
-
-    /* Normal flow: shop type + delivery/pickup now live on step 1, so go straight to the shop list */
-    if (!selectedPlaceType || !selectedOrderType) {
-        showToast('Choose the type of place and how you want it.', 'warning');
-        return;
-    }
-    window.goToStep4();
-};
-
-/* Step 1 → Shop list */
-window.goToStep4 = function() {
-    if (!selectedOrderType) return;
-    _hideStep('xoLocStep1');
-    _showStep('xoLocStep4');
-    _markDone('xoStep1Dot');
-    _markActive('xoStep4Dot');
-    _markIdle('xoStep5Dot');
-    /* Reset any previously picked shop */
-    selectedPickerShopId = null;
-    const nextBtn = document.getElementById('xoStep4NextBtn');
-    if (nextBtn) nextBtn.disabled = true;
-    renderStep4Shops();
-};
-
-/* Step 4 → Step 1 (shop type + delivery/pickup are part of step 1 now) */
-window.goToStep3Back = function() {
-    _hideStep('xoLocStep4');
-    _showStep('xoLocStep1');
-    _markActive('xoStep1Dot');
-    _markIdle('xoStep4Dot');
-    _markIdle('xoStep5Dot');
-    selectedPickerShopId = null;
-    refreshStep1();
-};
 
 /* ════ STEP 5 HELPERS ════ */
 
@@ -1178,55 +1240,32 @@ function getShopXeroxConfig(shopId) {
  * Called every time step 5 becomes visible.
  */
 function renderStep5() {
-    const anyOthers = isOthersState || isOthersDistrict || isOthersCity;
-    const shop      = allShopsRaw.find(s => s.id === selectedPickerShopId) || {};
-    const shopCfg   = getShopXeroxConfig(selectedPickerShopId);
-    const isCollege = extractShopPlaceType(shop) === 'college';
+    const shop    = selectedPickerShopId ? shopById(selectedPickerShopId) : null;
+    const shopCfg = getShopXeroxConfig(selectedPickerShopId);
 
-    /* ── Shop banner ── */
+    /* ── Note banner: the shop is chosen after this step ── */
     const banner = document.getElementById('xoS5ShopBanner');
     if (banner) {
-        if (anyOthers && !shop.name) {
-            /* No fallback shop configured yet — show a neutral "Others" banner */
-            banner.innerHTML = `
-            <div class="xo-s5-banner-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;">
-                <i class="fa-solid fa-shuffle"></i>
-            </div>
-            <div class="xo-s5-banner-body">
-                <div class="xo-s5-banner-name">Others / Any Available Shop</div>
-                <div class="xo-s5-banner-addr"><i class="fa-solid fa-circle-info"></i> Upload your files and we'll assign the nearest shop</div>
-                <div class="xo-s5-banner-badges"><span class="xo-s5-badge xo-s5-badge--pickup"><i class="fa-solid fa-store"></i> Standard Service</span></div>
-            </div>`;
-        } else {
-        const delivBadge = shop.homeDelivery === true
-            ? `<span class="xo-s5-badge xo-s5-badge--delivery"><i class="fa-solid fa-truck-fast"></i> Delivery</span>`
-            : `<span class="xo-s5-badge xo-s5-badge--pickup"><i class="fa-solid fa-store"></i> Pickup</span>`;
-        const typeBadge = isCollege
-            ? `<span class="xo-s5-badge xo-s5-badge--college"><i class="fa-solid fa-building-columns"></i> College</span>`
-            : `<span class="xo-s5-badge xo-s5-badge--shop"><i class="fa-solid fa-print"></i> Xerox Shop</span>`;
-        const paperCount = shopCfg.paper.length;
-        banner.innerHTML = `
-        <div class="xo-s5-banner-icon" style="${isCollege ? 'background:rgba(124,58,237,0.1);color:#7c3aed;' : ''}">
-            <i class="fa-solid ${isCollege ? 'fa-building-columns' : 'fa-store'}"></i>
-        </div>
+        banner.innerHTML = shop ? `
+        <div class="xo-s5-banner-icon"><i class="fa-solid fa-store"></i></div>
         <div class="xo-s5-banner-body">
-            <div class="xo-s5-banner-name">${esc(shop.name || 'Selected Shop')}</div>
-            <div class="xo-s5-banner-addr"><i class="fa-solid fa-location-dot"></i> ${esc(shop.address || 'Local Center')}</div>
-            <div class="xo-s5-banner-badges">${typeBadge}${delivBadge}</div>
-        </div>
-        <div class="xo-s5-banner-meta">
-            <div class="xo-s5-banner-meta-val">${paperCount}</div>
-            <div class="xo-s5-banner-meta-lbl">paper<br>type${paperCount !== 1 ? 's' : ''}</div>
+            <div class="xo-s5-banner-name">Prices at ${h(shop.name || 'your shop')}</div>
+            <div class="xo-s5-banner-addr"><i class="fa-solid fa-circle-info"></i> You can still change the shop in step 3.</div>
+        </div>` : `
+        <div class="xo-s5-banner-icon"><i class="fa-solid fa-file-circle-plus"></i></div>
+        <div class="xo-s5-banner-body">
+            <div class="xo-s5-banner-name">Add your documents</div>
+            <div class="xo-s5-banner-addr"><i class="fa-solid fa-circle-info"></i> Choose colour, sides and copies. Prices are standard rates — you'll pick the nearest shop in step 3.</div>
         </div>`;
-        } // end else (real shop)
-    } // end if (banner)
+    }
 
-    /* Wire up the step-5 file input (once) */
+    /* Wire up the upload-step file input (once). The config is read at pick time,
+       so a shop chosen later (or the price list arriving late) is respected. */
     const inp = document.getElementById('xoS5FileInput');
     if (inp && !inp._s5Wired) {
         inp._s5Wired = true;
         inp.addEventListener('change', async e => {
-            if (e.target.files.length > 0) await handleFilesStep5(e.target.files, shopCfg);
+            if (e.target.files.length > 0) await handleFilesStep5(e.target.files, getShopXeroxConfig(selectedPickerShopId));
             e.target.value = '';
         });
     }
@@ -1264,6 +1303,12 @@ window.triggerUploadStep5 = function() {
 async function handleFilesStep5(files, shopCfg) {
     const overlay = document.getElementById('xoLoadingOverlay');
     if (overlay) overlay.style.display = 'flex';
+    /* Files can be picked before the price list has loaded — wait for it so each
+       file starts with a real paper type */
+    if (!shopCfg?.paper?.length && _xeroxCfgReady) {
+        try { await _xeroxCfgReady; } catch (_) {}
+        shopCfg = getShopXeroxConfig(selectedPickerShopId);
+    }
     try {
         for (const file of Array.from(files)) {
             const pages = await getPdfPageCount(file);
@@ -1362,7 +1407,7 @@ function updateStep5Summary(shopCfg) {
 
     if (!uploadedFiles.length) {
         if (summaryEl)  summaryEl.style.display  = 'none';
-        if (proceedBtn) proceedBtn.disabled = true;
+        setSoftDisabled(proceedBtn, true);
         return;
     }
 
@@ -1382,8 +1427,8 @@ function updateStep5Summary(shopCfg) {
         f.uploadStatus === 'uploaded' || f.uploadStatus === 'later' || f.uploadStatus === 'whatsapp'
     );
 
-    /* Delivery nudge from shop rules */
-    const shop       = allShopsRaw.find(s => s.id === selectedPickerShopId) || {};
+    /* Delivery nudge from shop rules (only once a shop is picked) */
+    const shop       = (selectedPickerShopId && shopById(selectedPickerShopId)) || {};
     const xeroxRules = shop.deliveryPrices?.xerox || [];
     const freeRule   = xeroxRules.find(r => r.fee === 0);
     const isFree     = freeRule && subtotal >= freeRule.min;
@@ -1393,52 +1438,136 @@ function updateStep5Summary(shopCfg) {
 
     if (subtotalEl) subtotalEl.innerHTML = `
         <div class="xo-s5-subtotal-row">
-            <span class="xo-s5-subtotal-label">Subtotal</span>
+            <span class="xo-s5-subtotal-label">${shop.id ? 'Subtotal' : 'Estimated subtotal'}</span>
             <span class="xo-s5-subtotal-val">${hasEstimate ? '<em>Estimate pending</em>' : `₹${subtotal.toFixed(2)}`}</span>
         </div>
         ${nudge}
+        ${shop.id ? '' : '<div class="xo-s5-file-count">Standard rates — the final price is set by the shop you pick in step 3.</div>'}
         <div class="xo-s5-file-count">${uploadedFiles.length} file${uploadedFiles.length !== 1 ? 's' : ''} · ${uploadedFiles.filter(f => f.uploadStatus === 'uploaded').length} uploaded</div>`;
 
     if (summaryEl) summaryEl.style.display = 'block';
 
-    /* Enable proceed only when every file has been handled */
-    if (proceedBtn) proceedBtn.disabled = !allHandled;
+    /* Looks ready only when every file has been handled (a click explains what is missing) */
+    setSoftDisabled(proceedBtn, !allHandled);
 }
 
-/* Render shops filtered by all selections into the step-4 list */
+/* ════ SHOP CHOICES (step 3 list + the shop modal) ════
+   Up to MAX_SHOPS_LISTED xerox shops matching the location / place type /
+   delivery choice. With a pin they are sorted nearest first and limited to shops
+   within NEARBY_RADIUS_KM (or a delivery shop's own radius); when an area is
+   chosen too, that area's shops without a map pin follow. Nothing found (or the
+   "Others" bucket has no shop) → the default shop "OrderMyXerox India".
+   Returns { list, isDefault, reason } — reason: '' | 'no-pin' | 'none-near' | 'none-area'. */
+function nearestShopChoices() {
+    let list;
+    if (othersFastPath) {
+        const fb = otherShopsConfig?.xerox ? shopById(otherShopsConfig.xerox) : null;
+        list = fb ? [fb] : [];
+    } else {
+        list = filterShopsByLocation(allShopsRaw);      /* fills shopDistKm, nearest first */
+        if (userPin) {
+            const near = list.filter(s => {
+                if (!shopDistKm.has(s.id)) return false;
+                const d = shopDistKm.get(s.id);
+                return d <= NEARBY_RADIUS_KM || (selectedOrderType === 'delivery' && d <= shopRadius(s));
+            });
+            const unpinned = selectedStateId ? list.filter(s => !shopDistKm.has(s.id)) : [];
+            list = [...near, ...unpinned];
+        }
+        list = list.slice(0, MAX_SHOPS_LISTED);
+    }
+    if (list.length) return { list, isDefault: false, reason: userPin || othersFastPath ? '' : 'no-pin' };
+    const def = findDefaultShop();
+    if (def && userPin && !shopDistKm.has(def.id)) { const d = kmToShop(def); if (d !== null) shopDistKm.set(def.id, d); }
+    return { list: def ? [def] : [], isDefault: !!def, reason: userPin ? 'none-near' : 'none-area' };
+}
+
+/* The default shop: by name (case / spacing / punctuation ignored), then the admin's
+   "Others" fallback xerox shop. Only active shops; xerox shops are preferred. */
+function findDefaultShop() {
+    const norm   = v => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = norm(DEFAULT_SHOP_NAME);
+    const active = s => !s.status || String(s.status).toLowerCase() === 'active';
+    const pools  = [allShopsRaw, allShopsAll.filter(active)];
+    for (const pool of pools) { const hit = pool.find(s => norm(s.name) === target); if (hit) return hit; }
+    for (const pool of pools) { const hit = pool.find(s => norm(s.name).includes(target)); if (hit) return hit; }
+    const fb = otherShopsConfig?.xerox;
+    return fb ? (pools[0].find(s => s.id === fb) || pools[1].find(s => s.id === fb) || null) : null;
+}
+
+/* A shop by id from any list we hold (the default / fallback shop may not be in the filtered list) */
+function shopById(id) {
+    if (!id) return null;
+    return allShops.find(s => s.id === id) || allShopsRaw.find(s => s.id === id) || allShopsAll.find(s => s.id === id) || null;
+}
+
+/* Explains the list on step 3 */
+function shopListNote({ list, isDefault, reason }) {
+    if (!list.length) return '';
+    const shop = list[0];
+    if (isDefault) {
+        const why = reason === 'none-near'
+            ? `No xerox shop within ${NEARBY_RADIUS_KM} km of your location yet.`
+            : 'No xerox shop found for this area yet.';
+        const tip = reason === 'none-area' ? ' Go back and tap "Use my location" to look for the nearest shops.' : '';
+        const pickupOnly = selectedOrderType === 'delivery' && shop.homeDelivery !== true
+            ? ` This shop offers pickup only — go back and choose "Pick Up Myself".` : '';
+        return `<i class="fa-solid fa-circle-info"></i> <span>${h(why)} You can order from <b>${h(shop.name || DEFAULT_SHOP_NAME)}</b>.${h(tip + pickupOnly)}</span>`;
+    }
+    if (reason === 'no-pin') {
+        return `<i class="fa-solid fa-location-crosshairs"></i> <span>Shops for your area. Go back and tap "Use my location" to sort them by distance.</span>`;
+    }
+    if (userPin && !othersFastPath) {
+        return `<i class="fa-solid fa-route"></i> <span>${list.length === 1 ? 'The nearest shop' : `The ${list.length} nearest shops`} within ${NEARBY_RADIUS_KM} km of your pinned location.</span>`;
+    }
+    return '';
+}
+
+/* Render the shop choices into the step-3 list */
 function renderStep4Shops() {
     const list = document.getElementById('xoPickerShopList');
     if (!list) return;
+    const noteEl   = document.getElementById('xoPickerNote');
+    const countEl  = document.getElementById('xoPickerCount');
+    const countNum = document.getElementById('xoPickerCountNum');
+    const nextBtn  = document.getElementById('xoStep4NextBtn');
 
-    /* Show loading state while shops may still be fetching */
-    if (!allShopsRaw.length) {
+    /* Show loading state while shops are still being fetched */
+    if (!_shopsLoaded && !allShopsRaw.length) {
         list.innerHTML = `
             <div class="xo-picker-loading">
                 <div class="xo-shops-spinner"></div>
                 <span>Loading shops…</span>
             </div>`;
-        /* Hide count while loading */
-        const countEl = document.getElementById('xoPickerCount');
         if (countEl) countEl.style.display = 'none';
+        if (noteEl)  noteEl.style.display  = 'none';
         /* Retry once shops are loaded */
         const waitForShops = setInterval(() => {
             const s4 = document.getElementById('xoLocStep4');
             if (!s4 || s4.style.display === 'none') { clearInterval(waitForShops); return; }
-            if (allShopsRaw.length) { clearInterval(waitForShops); renderStep4Shops(); }
+            if (_shopsLoaded || allShopsRaw.length) { clearInterval(waitForShops); renderStep4Shops(); }
         }, 300);
         return;
     }
 
-    /* Apply all filters: location, place type, delivery type */
-    const shops = filterShopsByLocation(allShopsRaw);
+    const choice = nearestShopChoices();
+    const shops  = choice.list;
+
+    /* Keep an earlier pick only while it is still offered; a single shop is picked for the customer */
+    if (selectedPickerShopId && !shops.some(s => s.id === selectedPickerShopId)) selectedPickerShopId = null;
+    if (!selectedPickerShopId && shops.length === 1) selectedPickerShopId = shops[0].id;
+    setSoftDisabled(nextBtn, !selectedPickerShopId);
+
+    const note = shopListNote(choice);
+    if (noteEl) {
+        noteEl.innerHTML     = note;
+        noteEl.style.display = note ? 'flex' : 'none';
+        noteEl.classList.toggle('xo-picker-note--warn', choice.isDefault);
+    }
+    if (countEl)  countEl.style.display = 'flex';
+    if (countNum) countNum.textContent  = shops.length;
 
     if (!shops.length) {
-        /* Update count to 0 */
-        const countEl = document.getElementById('xoPickerCount');
-        const countNum = document.getElementById('xoPickerCountNum');
-        if (countEl)  countEl.style.display = 'flex';
-        if (countNum) countNum.textContent  = '0';
-
         list.innerHTML = `
             <div class="xo-picker-empty">
                 <i class="fa-solid fa-store-slash"></i>
@@ -1446,17 +1575,12 @@ function renderStep4Shops() {
                 <div class="xo-picker-empty-sub">
                     ${selectedOrderType === 'delivery'
                         ? 'No shops offer home delivery in your area yet. Go back and select "Pick Up Myself".'
-                        : (userPin && !selectedStateId ? 'No shop covers your pinned location yet. Try a different spot, or choose your state / district / city instead.' : 'No shops available in your area yet.')}
+                        : (userPin ? `No xerox shop within ${NEARBY_RADIUS_KM} km of your pinned location yet. Try a different spot, or choose your state / district / city instead.` : 'No shops available in your area yet.')}
                 </div>
             </div>`;
+        renderPickerTotal();
         return;
     }
-
-    /* Update count badge */
-    const countEl  = document.getElementById('xoPickerCount');
-    const countNum = document.getElementById('xoPickerCountNum');
-    if (countEl)  countEl.style.display = 'flex';
-    if (countNum) countNum.textContent  = shops.length;
 
     list.innerHTML = shops.map((s, idx) => {
         const xeroxRules = s.deliveryPrices?.xerox || [];
@@ -1465,44 +1589,57 @@ function renderStep4Shops() {
         const delivBadge = offersDelivery
             ? `<span class="xo-picker-badge xo-picker-badge--delivery">
                    <i class="fa-solid fa-truck-fast"></i> Delivery
-                   ${s.deliveryTime ? '· ' + s.deliveryTime : ''}
+                   ${s.deliveryTime ? '· ' + h(s.deliveryTime) : ''}
                </span>`
             : `<span class="xo-picker-badge xo-picker-badge--pickup">
                    <i class="fa-solid fa-store"></i> Pickup only
                </span>`;
         const freeBadge = freeRule
             ? `<span class="xo-picker-badge xo-picker-badge--free">
-                   <i class="fa-solid fa-gift"></i> Free above ₹${freeRule.min}
+                   <i class="fa-solid fa-gift"></i> Free above ₹${h(freeRule.min)}
                </span>` : '';
-        const svcs = (s.services || [])
-            .map(sv => `<span class="xo-picker-svc">${esc(sv)}</span>`).join('');
+        const defBadge = choice.isDefault ? `<span class="xo-picker-badge xo-picker-badge--free"><i class="fa-solid fa-star"></i> Default shop</span>` : '';
+        const svcs = (Array.isArray(s.services) ? s.services : [])
+            .map(sv => `<span class="xo-picker-svc">${h(sv)}</span>`).join('');
         const isSelected = s.id === selectedPickerShopId;
         return `
-        <div class="xo-picker-shop ${isSelected ? 'selected' : ''}"
-             onclick="selectPickerShop('${s.id}')">
+        <div class="xo-picker-shop ${isSelected ? 'selected' : ''}" role="radio" aria-checked="${isSelected}" tabindex="0"
+             onclick="selectPickerShop('${esc(s.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectPickerShop('${esc(s.id)}');}">
             <div class="xo-picker-shop-radio ${isSelected ? 'checked' : ''}"></div>
             <div class="xo-picker-shop-body">
-                <div class="xo-picker-shop-name">${esc(s.name)}${distBadge(s, idx === 0)}</div>
+                <div class="xo-picker-shop-name">${h(s.name)}${distBadge(s, idx === 0 && !choice.isDefault && shops.length > 1)}</div>
                 <div class="xo-picker-shop-addr">
-                    <i class="fa-solid fa-location-dot"></i> ${esc(s.address || 'Local Center')}
-                    ${s.locationLink ? `<br><a href="${esc(s.locationLink)}" target="_blank" onclick="event.stopPropagation();" style="color:var(--primary); font-weight:600; text-decoration:none; display:inline-block; margin-top:4px;"><i class="fa-solid fa-map-location-dot"></i> View on Map</a>` : ''}
+                    <i class="fa-solid fa-location-dot"></i> ${h(s.address || 'Local Center')}
+                    ${s.locationLink ? `<br><a href="${h(s.locationLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--primary); font-weight:600; text-decoration:none; display:inline-block; margin-top:4px;"><i class="fa-solid fa-map-location-dot"></i> View on Map</a>` : ''}
                 </div>
                 <div class="xo-picker-badges">
-                    ${delivBadge}${freeBadge}
+                    ${defBadge}${delivBadge}${freeBadge}
                 </div>
                 ${svcs ? `<div class="xo-picker-svcs">${svcs}</div>` : ''}
             </div>
         </div>`;
     }).join('');
+    renderPickerTotal();
+}
+
+/* "3 files · ₹42.00 at <shop>" under the list, with the picked shop's prices */
+function renderPickerTotal() {
+    const el = document.getElementById('xoPickerTotal');
+    if (!el) return;
+    const shop = selectedPickerShopId ? shopById(selectedPickerShopId) : null;
+    if (!shop || !uploadedFiles.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    calculatePrices();   /* selectedShopId is unset in the wizard, so this uses the picked shop */
+    const subtotal = uploadedFiles.reduce((s, f) => s + (f.prices?.final || 0), 0);
+    el.innerHTML = `
+        <span>${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'} at <b>${h(shop.name || 'this shop')}</b>${selectedOrderType === 'delivery' ? ' <small>+ delivery</small>' : ''}</span>
+        <strong>₹${subtotal.toFixed(2)}</strong>`;
+    el.style.display = 'flex';
 }
 
 window.selectPickerShop = function(id) {
     selectedPickerShopId = id;
-    /* Re-render list so radio states update */
+    /* Re-render list so radio states, the button and the total update */
     renderStep4Shops();
-    /* Enable Start Order button */
-    const btn = document.getElementById('xoStep4NextBtn');
-    if (btn) btn.disabled = false;
 };
 
 /* Mark the delivery/pickup cards; College is pickup-only so delivery is locked while it is chosen */
@@ -1610,34 +1747,22 @@ window.changeLocation = function() {
     if (citySelect)     citySelect.value     = '';
     if (districtField)  districtField.style.display = 'none';
     if (cityField)      cityField.style.display     = 'none';
-    if (confirmBtn)     confirmBtn.disabled = true;
+    if (confirmBtn)     setSoftDisabled(confirmBtn, true);
 
-    /* Reset all steps to initial state */
-    _showStep('xoLocStep1');
-    _hideStep('xoLocStep4');
+    /* Reset all steps: the wizard starts again at upload */
     const prefsEl = document.getElementById('xoStep1Prefs');
     if (prefsEl) prefsEl.style.display = 'none';
     document.getElementById('xoOptDelivery')?.classList.remove('xo-delivery-card--locked');
-    _markActive('xoStep1Dot');
-    _markIdle('xoStep2Dot');
-    _markIdle('xoStep3Dot');
-    _markIdle('xoStep4Dot');
 
     /* Reset all card selections */
     ['xoOptShop','xoOptCollege','xoOptDelivery','xoOptPickup'].forEach(id =>
         document.getElementById(id)?.classList.remove('selected'));
     ['xoRadioShop','xoRadioCollege','xoRadioDelivery','xoRadioPickup'].forEach(id =>
         document.getElementById(id)?.classList.remove('checked'));
-    const s2btn = null, s3btn = null;
-    const s4btn = document.getElementById('xoStep4NextBtn');
-    const s5btn = document.getElementById('xoStep5ProceedBtn');
-    if (s2btn) s2btn.disabled = true;
-    if (s3btn) s3btn.disabled = true;
-    if (s4btn) s4btn.disabled = true;
-    if (s5btn) s5btn.disabled = true;
-    _markIdle('xoStep5Dot');
-    _hideStep('xoLocStep5');
-    /* Clear any files added during previous step-5 session */
+    setSoftDisabled(document.getElementById('xoStep4NextBtn'), true);
+    setSoftDisabled(document.getElementById('xoStep5ProceedBtn'), true);
+    othersFastPath = false;
+    /* Clear any files added during a previous wizard session */
     uploadedFiles.length = 0;
 
     /* Show in-page picker again, hide landing content */
@@ -1649,11 +1774,13 @@ window.changeLocation = function() {
     document.getElementById('xoLanding').style.display       = 'none';
     document.getElementById('xoConfigSection').style.display = 'none';
     document.getElementById('xoAddMoreBtn').style.display    = 'none';
+    showWizardStep('upload');
+    renderStep5();
+    /* Returning visitors skipped the location lists on load — fetch them now */
+    if (!allStates.length) loadLocationOptions().catch(e => console.error('[Location] fetch failed:', e));
 };
 
-const XO_CACHE_TTL       = 6 * 60 * 60 * 1000;   // 6 hours in ms
-const XO_CONFIG_CACHE_KEY = 'jasa_xerox_config_v1';
-const XO_SHOPS_CACHE_KEY  = 'jasa_xerox_shops_v2';
+/* Config and shops are always fetched fresh (no copy kept on the device). */
 
 async function fetchXeroxConfig() {
     const applyConfig = cfg => {
@@ -1666,6 +1793,7 @@ async function fetchXeroxConfig() {
     let workerReached = false;
     try {
         const res = await fetch(`${WORKER_URL}/api/config/xerox`, {
+            cache: 'no-store',
             signal: AbortSignal.timeout(4000)
         });
         if (res.ok) {
@@ -1679,24 +1807,10 @@ async function fetchXeroxConfig() {
                     binding:    (cfg.binding    || []).sort(bySort),
                     lamination: (cfg.lamination || []).sort(bySort),
                 });
-                try {
-                    localStorage.setItem(XO_CONFIG_CACHE_KEY, JSON.stringify({
-                        data:      { paper: xeroxConfig.paper, binding: xeroxConfig.binding, lamination: xeroxConfig.lamination },
-                        timestamp: Date.now()
-                    }));
-                } catch (_) {}
                 return;
             }
         }
     } catch (_) { /* Worker unavailable — fall through */ }
-
-    /* 2. Worker unreachable — the copy saved on this device */
-    if (!workerReached) {
-        try {
-            const { data } = JSON.parse(localStorage.getItem(XO_CONFIG_CACHE_KEY) || '{}');
-            if (data?.paper?.length) { applyConfig(data); return; }
-        } catch (_) {}
-    }
 
     /* 3. Firestore fallback */
     try {
@@ -1708,107 +1822,25 @@ async function fetchXeroxConfig() {
         xeroxConfig.paper      = pSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         xeroxConfig.binding    = bSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         xeroxConfig.lamination = lSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        try {
-            localStorage.setItem(XO_CONFIG_CACHE_KEY, JSON.stringify({
-                data:      { paper: xeroxConfig.paper, binding: xeroxConfig.binding, lamination: xeroxConfig.lamination },
-                timestamp: Date.now()
-            }));
-        } catch (_) {}
     } catch (e) { console.warn('xerox config fetch failed:', e); }
 }
 
-/**
- * _revalidateShopsInBackground(cachedRawList)
- * Fires a Worker fetch after serving from localStorage cache.
- * If the Worker returns data whose shop documents differ from what's cached
- * (checked by comparing a lightweight fingerprint of each shop's key fields),
- * updates localStorage and re-renders so admin changes — like toggling
- * homeDelivery — reach the user without waiting for the 6hr TTL to expire.
- * Never blocks the initial render; all work is async and best-effort.
- */
-async function _revalidateShopsInBackground(cachedRawList) {
-    try {
-        let freshList = [];
-        try {
-            const res = await fetch(`${WORKER_URL}/api/shops/all?_t=${Date.now()}`, {
-                signal: AbortSignal.timeout(6000)
-            });
-            if (res.ok) {
-                const json = await res.json();
-                if (Array.isArray(json)) freshList = json;
-                else if (Array.isArray(json.shops)) freshList = json.shops;
-                else if (Array.isArray(json.data))  freshList = json.data;
-                else if (json.shops?.shops && Array.isArray(json.shops.shops)) freshList = json.shops.shops;
-            }
-        } catch (_) {}
-
-        /* If worker fetch failed or returned empty list, fall back to Firestore */
-        if (!freshList.length) {
-            try {
-                const snap = await getDocs(collection(db, 'shops'));
-                freshList  = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            } catch (_) {}
-        }
-
-        if (!freshList.length) return;
-
-        /* Compare whole shop documents, so any admin change (pin, radius, prices…) is picked up */
-        const fingerprint = list => JSON.stringify([...list].sort((a, b) => String(a.id).localeCompare(String(b.id))));
-
-        if (fingerprint(freshList) === fingerprint(cachedRawList)) return; /* no change */
-
-        /* Data changed — update localStorage and re-render */
-        try {
-            localStorage.setItem(XO_SHOPS_CACHE_KEY, JSON.stringify({
-                data:      freshList,
-                timestamp: Date.now()
-            }));
-        } catch (_) {}
-
-        const xeroxOnly = freshList.filter(s => isXeroxShop(s));
-        if (!xeroxOnly.length) return;
-
-        allShopsRaw = xeroxOnly;
-        allShops    = filterShopsByLocation(xeroxOnly);
-        renderLandingShops();
-        updateWizardStepCounts();
-        const step4 = document.getElementById('xoLocStep4');
-        if (step4 && step4.style.display !== 'none') renderStep4Shops();
-    } catch (_) { /* background — never throw */ }
-}
-
+/* Shops for the page; _shopsLoaded flips once every source has been tried, so the
+   shop step can stop showing "Loading…" even when nothing could be fetched. */
+let _shopsLoaded = false;
 async function fetchShops(forceFresh = false) {
-    /* 1. localStorage (6hr TTL) — serve immediately, then revalidate in background */
-    if (!forceFresh) {
-        try {
-            const raw = localStorage.getItem(XO_SHOPS_CACHE_KEY);
-            if (raw) {
-                const { data, timestamp } = JSON.parse(raw);
-                if (Date.now() - timestamp < XO_CACHE_TTL && Array.isArray(data) && data.length) {
-                    const xeroxOnly = data.filter(s => isXeroxShop(s));
-                    if (xeroxOnly.length > 0) {
-                        allShopsRaw = xeroxOnly;
-                        allShops    = filterShopsByLocation(xeroxOnly);
-                        renderLandingShops();
-                        updateWizardStepCounts();
-                        const step4 = document.getElementById('xoLocStep4');
-                        if (step4 && step4.style.display !== 'none') renderStep4Shops();
-
-                        /* Background revalidation — silently refresh from Worker so
-                           admin changes (homeDelivery, status, location, etc.) reach the user
-                           without waiting for the 6hr TTL to expire.
-                           Only re-renders if data actually changed. */
-                        _revalidateShopsInBackground(data);
-                        return;
-                    }
-                }
-            }
-        } catch (_) {}
+    try { await _fetchShops(forceFresh); }
+    finally {
+        _shopsLoaded = true;
+        const step4 = document.getElementById("xoLocStep4");
+        if (step4 && step4.style.display !== "none") renderStep4Shops();
     }
-
+}
+async function _fetchShops(forceFresh = false) {
     /* 2. Cloudflare Worker KV cache */
     try {
         const res = await fetch(`${WORKER_URL}/api/shops/all?_t=${Date.now()}`, {
+            cache: 'no-store',
             signal: AbortSignal.timeout(4000)
         });
         if (res.ok) {
@@ -1822,12 +1854,7 @@ async function fetchShops(forceFresh = false) {
             if (rawList.length) {
                 const xeroxOnly = rawList.filter(s => isXeroxShop(s));
                 if (xeroxOnly.length > 0) {
-                    try {
-                        localStorage.setItem(XO_SHOPS_CACHE_KEY, JSON.stringify({
-                            data:      rawList,
-                            timestamp: Date.now()
-                        }));
-                    } catch (_) {}
+                    allShopsAll = rawList;
                     allShopsRaw = xeroxOnly;
                     allShops    = filterShopsByLocation(xeroxOnly);
                     renderLandingShops();
@@ -1843,12 +1870,9 @@ async function fetchShops(forceFresh = false) {
     /* 3. Firestore fallback — fetch all shops */
     try {
         const snap  = await getDocs(collection(db, 'shops'));
-        const shops = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-                           .filter(s => isXeroxShop(s));
+        allShopsAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const shops = allShopsAll.filter(s => isXeroxShop(s));
         if (shops.length > 0) {
-            try {
-                localStorage.setItem(XO_SHOPS_CACHE_KEY, JSON.stringify({ data: shops, timestamp: Date.now() }));
-            } catch (_) {}
         }
         allShopsRaw = shops;
         allShops    = filterShopsByLocation(shops);
@@ -1867,25 +1891,32 @@ function filterShopsByLocation(shops) {
     const list = shops.filter(s => matchShopWithFilters(s));
     shopDistKm.clear();
     if (userPin) {
-        list.forEach(s => { if (hasCoords(s)) shopDistKm.set(s.id, haversineKm(userPin, { lat: Number(s.lat), lng: Number(s.lng) })); });
+        list.forEach(s => { const d = kmToShop(s); if (d !== null) shopDistKm.set(s.id, d); });
         /* nearest first; shops without a pin keep their order after the ones with a distance */
         list.sort((a, b) => (shopDistKm.has(a.id) ? shopDistKm.get(a.id) : Infinity) - (shopDistKm.has(b.id) ? shopDistKm.get(b.id) : Infinity));
     }
     return list;
 }
 
-/* "2.4 km" label + nearest badge for the shop list */
+/* "850 m" / "2.4 km" / "18 km" — straight-line distance from the customer's pin */
+function fmtDistance(km) {
+    if (km < 1) return `${Math.max(10, Math.round(km * 1000 / 10) * 10)} m`;
+    return `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+}
+
+/* Distance label + nearest badge for the shop list */
 function distBadge(s, isFirst) {
     if (!shopDistKm.has(s.id)) return '';
     const km = shopDistKm.get(s.id);
-    return `<span class="xo-picker-dist"><i class="fa-solid fa-route"></i> ${km < 10 ? km.toFixed(1) : Math.round(km)} km</span>${isFirst ? '<span class="xo-picker-nearest">Nearest</span>' : ''}`;
+    return `<span class="xo-picker-dist" title="Straight-line distance from your pinned location"><i class="fa-solid fa-route"></i> ${fmtDistance(km)}</span>${isFirst ? '<span class="xo-picker-nearest">Nearest</span>' : ''}`;
 }
 
 
 /* ════ FILE INPUT ════ */
 function initFileInput() {
     const input = document.getElementById('xoFileInput');
-    if (!input) return;
+    if (!input || input._wired) return;
+    input._wired = true;
     input.addEventListener('change', async e => {
         if (e.target.files.length > 0) await handleFiles(e.target.files);
         e.target.value = '';
@@ -2074,6 +2105,104 @@ function combinedBinding() {
     return list.find(b => b.id === combinedBook.bindingId) || list[0] || null;
 }
 
+/* ════ PRINT OPTIONS (per paper) ════
+   A paper's option set (color / format / ratio / binding / lamination) comes from
+   the shop's overrides (paper._shopOptions) or the global paper.options.
+   Each is { enabled, selection } or { enabled, bw:{selection}, color:{selection} }.
+   An option that is switched off — or saved with an empty selection, which the
+   shop pricing form does whenever the admin leaves it unticked — does NOT restrict
+   the customer; it just isn't a shop-specific limit.                           */
+function activeOptCfg() {
+    const id = selectedShopId || selectedPickerShopId;
+    return id ? getShopXeroxConfig(id) : xeroxConfig;
+}
+function resolvePaper(paperId, cfg = activeOptCfg()) {
+    return cfg.paper.find(p => p.id === paperId) || xeroxConfig.paper.find(p => p.id === paperId) || null;
+}
+function paperOpt(paper, key) {
+    return (paper?._shopOptions || {})[key] || (paper?.options || {})[key] || null;
+}
+/* Allowed values of an option for a colour panel ('bw' | 'color'), or `fallback` when unrestricted */
+function optSelection(opt, panel, fallback) {
+    if (!opt || opt.enabled === false) return fallback;
+    const sel = opt[panel]?.selection ?? opt.selection;
+    return Array.isArray(sel) && sel.length ? sel : fallback;
+}
+
+/* Which colour modes a file may use on this paper.
+   Colour needs a colour price — but before a shop is picked the standard rates
+   are only an estimate, so colour stays selectable (the shop's own price applies
+   when it is picked). B&W is always kept when colour is not possible, so the
+   customer is never left without a choice. Mixed needs 2+ pages. */
+function colorModesFor(paper, pages) {
+    const sel     = optSelection(paperOpt(paper, 'color'), 'x', ['bw', 'color']);
+    const cp      = paper?.colorPrices || {};
+    const priced  = Number(cp.frontOnly) > 0 || Number(cp.frontBack) > 0;
+    const shopSet = !!(selectedShopId || selectedPickerShopId);
+    const colourPossible = priced || !shopSet;
+    const color = sel.includes('color') && colourPossible;
+    const bw    = sel.includes('bw') || !color;
+    return { bw, color, mixed: pages > 1 && colourPossible, priced };
+}
+
+/* Snap a file's colour, format and ratio to what `paper` allows (after a paper or shop change) */
+function snapDocOptions(f, paper) {
+    const c = f.config;
+    const modes = colorModesFor(paper, f.pages);
+    if (!modes[c.color]) c.color = modes.bw ? 'bw' : 'color';
+    const fmt = selectionFor(c.color,
+        optSelection(paperOpt(paper, 'format'), 'bw',    ['frontOnly', 'both']),
+        optSelection(paperOpt(paper, 'format'), 'color', ['frontOnly', 'both']));
+    if (!fmt.includes(c.format)) c.format = fmt[0] || 'frontOnly';
+    if (f.pages === 1) c.format = 'frontOnly';
+    const rat = selectionFor(c.color,
+        optSelection(paperOpt(paper, 'ratio'), 'bw',    ['1:1', '1:2']),
+        optSelection(paperOpt(paper, 'ratio'), 'color', ['1:1', '1:2']));
+    if (!rat.includes(c.ratio)) c.ratio = rat[0] || '1:1';
+}
+
+/* Pages per side, in words (config.ratio stays '1:1' / '1:2' — the values the server prices) */
+function ratioText(ratio) {
+    return ratio === '1:2' ? '2 pages per side' : '1 page per side';
+}
+
+/* The shop is picked after the options: move every file onto papers / bindings /
+   laminations this shop offers. Returns short descriptions of what changed. */
+function fitDocsToShop(shopId) {
+    const cfg = getShopXeroxConfig(shopId);
+    const changes = [];
+    const nameOf = (list, id) => list.find(x => x.id === id)?.name || xeroxConfig.paper.find(x => x.id === id)?.name || 'previous';
+    const prevShop = selectedPickerShopId, prevSel = selectedShopId;
+    selectedPickerShopId = shopId; selectedShopId = null;      /* colorModesFor() looks at the picked shop */
+    try {
+        uploadedFiles.forEach((f, i) => {
+            const c = f.config, label = `Doc ${i + 1}`;
+            const before = { color: c.color, format: c.format, ratio: c.ratio };
+            if (cfg.paper.length && !cfg.paper.some(p => p.id === c.paperId)) {
+                const from = nameOf(xeroxConfig.paper, c.paperId);
+                c.paperId = cfg.paper[0].id;
+                changes.push(`${label} paper ${from} → ${cfg.paper[0].name || 'available paper'}`);
+            }
+            const paper = cfg.paper.find(p => p.id === c.paperId) || xeroxConfig.paper.find(p => p.id === c.paperId);
+            if (paper) snapDocOptions(f, paper);
+            if (before.color !== c.color)   changes.push(`${label} ${colorText({ color: before.color, colorPages: c.colorPages })} → ${colorText(c)}`);
+            if (before.format !== c.format) changes.push(`${label} ${c.format === 'both' ? 'front & back' : 'front only'}`);
+            if (before.ratio !== c.ratio)   changes.push(`${label} ${ratioText(c.ratio)}`);
+            if (c.bindingId && c.bindingId !== 'none' && c.bindingId !== COMBINED_BINDING && !cfg.binding.some(b => b.id === c.bindingId)) {
+                c.bindingId = 'none';
+                changes.push(`${label} binding removed`);
+            }
+            if (c.laminationId && c.laminationId !== 'none' && !cfg.lamination.some(l => l.id === c.laminationId)) {
+                c.laminationId = 'none';
+                changes.push(`${label} lamination removed`);
+            }
+        });
+    } finally {
+        selectedPickerShopId = prevShop; selectedShopId = prevSel;
+    }
+    return changes;
+}
+
 /* ════ PRICING ENGINE ════ */
 
 /* Shop rate for one print: frontOnly is per side, frontBack is per sheet */
@@ -2234,7 +2363,7 @@ function buildOrderDocuments() {
 function shownXeroxTotal(isPickup) {
     calculatePrices();
     const subtotal = uploadedFiles.reduce((s, f) => s + f.prices.final, 0);
-    const shop  = allShops.find(s => s.id === selectedShopId) || allShopsRaw.find(s => s.id === selectedShopId);
+    const shop  = shopById(selectedShopId);
     const rules = shop?.deliveryPrices?.xerox || [];
     const free  = rules.find(r => Number(r.fee) === 0);
     const rule  = rules.find(r => subtotal >= Number(r.min) && (r.max == null || subtotal <= Number(r.max)));
@@ -2298,56 +2427,28 @@ function buildDocCard(f, i) {
     const paper     = paperList.find(p => p.id === cfg.paperId)
                    || xeroxConfig.paper.find(p => p.id === cfg.paperId);
 
-    /*
-     * Option toggles — priority:
-     *   1. paper._shopOptions  (shop-level overrides set in Pricing mode)
-     *   2. paper.options       (global defaults set in Universal mode)
-     * _shopOptions is attached by getShopXeroxConfig() for the map-based format.
-     * Each key: { enabled, selection } or { enabled, bw:{selection}, color:{selection} }
-     */
-    const shopOpts   = paper?._shopOptions || {};
-    const globalOpts = paper?.options      || {};
+    /* Option sets for this paper — shop overrides first, then the global options (see paperOpt) */
+    const formatOpt = paperOpt(paper, 'format');
+    const ratioOpt  = paperOpt(paper, 'ratio');
+    const bindOpt   = paperOpt(paper, 'binding');
+    const lamOpt    = paperOpt(paper, 'lamination');
 
-    /* Helper: resolve an option object — shop wins if present, else global */
-    const resolveOpt = (key) => shopOpts[key] || globalOpts[key] || null;
-
-    const colorOpt  = resolveOpt('color');
-    const formatOpt = resolveOpt('format');
-    const ratioOpt  = resolveOpt('ratio');
-    const bindOpt   = resolveOpt('binding');
-    const lamOpt    = resolveOpt('lamination');
-
-    /* Which top-level options are visible */
-    const colorEnabled  = !colorOpt  || colorOpt.enabled  !== false;
+    /* Which option controls are shown. Colour is always shown: customers must be
+       able to choose colour or black & white. */
     const formatEnabled = !formatOpt || formatOpt.enabled !== false;
     const ratioEnabled  = ratioOpt?.enabled === true;
     const bindEnabled   = !bindOpt   || bindOpt.enabled   !== false;
     const lamEnabled    = !lamOpt    || lamOpt.enabled     !== false;
 
-    /*
-     * Color sub-selection: which modes (bw / color) are allowed.
-     * Shop colorOptions.selection takes priority, then global options.color.selection.
-     */
-    const colorSel = colorOpt?.selection || ['bw', 'color'];
-    const allowBw    = colorSel.includes('bw');
-    const allowColor = colorSel.includes('color');
+    const modes = colorModesFor(paper, f.pages);
 
-    /*
-     * Format sub-selection: per color mode (bw / color).
-     * Shop formatOptions.bw.selection / .color.selection take priority.
-     * Falls back to flat selection array for legacy global options.
-     */
-    const fmtBwSel    = formatOpt?.bw?.selection    ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-    const fmtColorSel = formatOpt?.color?.selection ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-    /* Current format selection for active color mode */
-    const activeFmtSel = selectionFor(cfg.color, fmtBwSel, fmtColorSel);
-
-    /*
-     * Ratio sub-selection: per color mode.
-     */
-    const ratBwSel    = ratioOpt?.bw?.selection    ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-    const ratColorSel = ratioOpt?.color?.selection ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-    const activeRatSel = selectionFor(cfg.color, ratBwSel, ratColorSel);
+    /* Format / ratio choices for the active colour mode */
+    const activeFmtSel = selectionFor(cfg.color,
+        optSelection(formatOpt, 'bw',    ['frontOnly', 'both']),
+        optSelection(formatOpt, 'color', ['frontOnly', 'both']));
+    const activeRatSel = selectionFor(cfg.color,
+        optSelection(ratioOpt, 'bw',    ['1:1', '1:2']),
+        optSelection(ratioOpt, 'color', ['1:1', '1:2']));
 
     const inBook = cfg.bindingId === COMBINED_BINDING;
 
@@ -2359,7 +2460,7 @@ function buildDocCard(f, i) {
     /* Binding list: shop-filtered if available */
     const bindingList = shopCfg ? shopCfg.binding : xeroxConfig.binding;
     /* If shop has a binding sub-selection for this paper, further filter */
-    const bindSelIds  = bindOpt?.selection?.length ? bindOpt.selection : null;
+    const bindSelIds  = bindOpt?.enabled !== false && bindOpt?.selection?.length ? bindOpt.selection : null;
     const filteredBinding = bindSelIds
         ? bindingList.filter(b => bindSelIds.includes(b.id))
         : bindingList;
@@ -2372,7 +2473,7 @@ function buildDocCard(f, i) {
 
     /* Lamination list: shop-filtered if available */
     const laminationList = shopCfg ? shopCfg.lamination : xeroxConfig.lamination;
-    const lamSelIds      = lamOpt?.selection?.length ? lamOpt.selection : null;
+    const lamSelIds      = lamOpt?.enabled !== false && lamOpt?.selection?.length ? lamOpt.selection : null;
     const filteredLam    = lamSelIds
         ? laminationList.filter(l => lamSelIds.includes(l.id))
         : laminationList;
@@ -2381,19 +2482,39 @@ function buildDocCard(f, i) {
             `<option value="${l.id}" ${cfg.laminationId === l.id ? 'selected' : ''}>${l.name}</option>`
         ).join('');
 
+    /* Segmented button (colour / ratio) */
+    const seg = (key, value, active, enabled, inner, why = '') => `
+                    <button type="button" class="xo-seg-btn ${active ? 'active' : ''}" role="radio" aria-checked="${active}"
+                            ${enabled ? '' : 'disabled'} ${why ? `title="${h(why)}"` : ''}
+                            onclick="updateConfig(${i},'${key}','${value}')">${inner}</button>`;
+
+    const colourWhy = !modes.color
+        ? (modes.priced || !(selectedShopId || selectedPickerShopId)
+            ? 'Colour is not offered on this paper'
+            : 'This shop has no colour price for this paper')
+        : '';
+
+    /* Sheets used per copy — makes "pages per side" concrete */
+    const perSide = cfg.ratio === '1:2' ? 2 : 1;
+    const sheets  = Math.ceil(Math.ceil(f.pages / perSide) / (cfg.format === 'both' ? 2 : 1));
+
     // Build each option block as a keyed map, then render in admin-defined order
     const optionBlocks = {
-        /* Mixed is offered for any file with more than one page, whatever the paper allows */
-        color: (colorEnabled || f.pages > 1) ? `
-            <div class="xo-config-group">
-                <label class="xo-config-label">Color</label>
-                <select class="xo-select" onchange="updateConfig(${i},'color',this.value)">
-                    ${allowBw    ? `<option value="bw"    ${cfg.color==='bw'    ?'selected':''}>Black &amp; White</option>` : ''}
-                    ${allowColor ? `<option value="color" ${cfg.color==='color' ?'selected':''}>Color</option>` : ''}
-                    ${f.pages > 1 ? `<option value="mixed" ${cfg.color==='mixed' ?'selected':''}>Mixed (some pages colour)</option>` : ''}
-                </select>
+        color: `
+            <div class="xo-config-group full">
+                <label class="xo-config-label">Print colour</label>
+                <div class="xo-seg" role="radiogroup" aria-label="Print colour">
+                    ${seg('color', 'bw', cfg.color === 'bw', modes.bw,
+                        `<span class="xo-seg-swatch xo-seg-swatch--bw"></span><span class="xo-seg-text">Black &amp; White</span>`)}
+                    ${seg('color', 'color', cfg.color === 'color', modes.color,
+                        `<span class="xo-seg-swatch xo-seg-swatch--color"></span><span class="xo-seg-text">Colour</span>`, colourWhy)}
+                    ${f.pages > 1 ? seg('color', 'mixed', cfg.color === 'mixed', modes.mixed,
+                        `<span class="xo-seg-swatch xo-seg-swatch--mixed"></span><span class="xo-seg-text">Mixed<small>some pages colour</small></span>`,
+                        modes.mixed ? '' : colourWhy) : ''}
+                </div>
+                ${!modes.color && colourWhy ? `<div class="xo-seg-hint"><i class="fa-solid fa-circle-info"></i> ${h(colourWhy)} — try another paper type${selectedPickerShopId && !selectedShopId ? ' or shop' : ''}.</div>` : ''}
             </div>
-            ${cfg.color === 'mixed' ? buildColorPagesEditor(f, i) : ''}` : '',
+            ${cfg.color === 'mixed' ? buildColorPagesEditor(f, i) : ''}`,
 
         format: formatEnabled ? `
             <div class="xo-config-group">
@@ -2404,13 +2525,17 @@ function buildDocCard(f, i) {
                 </select>
             </div>` : '',
 
+        /* Pages per side of the paper. Values stay '1:1' / '1:2' (what the server prices). */
         ratio: ratioEnabled ? `
-            <div class="xo-config-group">
-                <label class="xo-config-label">Print Ratio</label>
-                <select class="xo-select" onchange="updateConfig(${i},'ratio',this.value)">
-                    ${activeRatSel.includes('1:1') ? `<option value="1:1" ${cfg.ratio==='1:1'?'selected':''}>1:1 (1 page/sheet)</option>` : ''}
-                    ${activeRatSel.includes('1:2') ? `<option value="1:2" ${cfg.ratio==='1:2'?'selected':''}>1:2 (2 pages/sheet)</option>` : ''}
-                </select>
+            <div class="xo-config-group full">
+                <label class="xo-config-label">Pages on each side of the paper</label>
+                <div class="xo-seg xo-seg--ratio" role="radiogroup" aria-label="Pages on each side of the paper">
+                    ${activeRatSel.includes('1:1') ? seg('ratio', '1:1', cfg.ratio !== '1:2', true,
+                        `<span class="xo-ratio-icon" aria-hidden="true"><i></i></span><span class="xo-seg-text">1 page per side<small>Normal size</small></span>`) : ''}
+                    ${activeRatSel.includes('1:2') ? seg('ratio', '1:2', cfg.ratio === '1:2', true,
+                        `<span class="xo-ratio-icon xo-ratio-icon--2" aria-hidden="true"><i></i><i></i></span><span class="xo-seg-text">2 pages per side<small>Half size · saves paper</small></span>`) : ''}
+                </div>
+                <div class="xo-seg-hint">${f.pages} page${f.pages === 1 ? '' : 's'} → about ${sheets} sheet${sheets === 1 ? '' : 's'} per copy${cfg.format === 'both' ? ' (front &amp; back)' : ''}</div>
             </div>` : '',
 
         binding: inBook ? `
@@ -2756,70 +2881,21 @@ window.setBookCopies = function(val) {
 /* Helper: are we currently inside the step-5 wizard panel? */
 function _inStep5() {
     const s5 = document.getElementById('xoLocStep5');
-    return s5 && s5.style.display !== 'none';
+    const ov = document.getElementById('xoLocationOverlay');
+    /* The upload panel stays display:block after the wizard closes, so the overlay must be checked too */
+    return !!s5 && s5.style.display !== 'none' && !(ov && ov.style.display === 'none');
 }
 
 window.updateConfig = function(i, key, value) {
-    uploadedFiles[i].config[key] = value;
-    if (key === 'paperId') {
-        const activeShopId = selectedShopId || selectedPickerShopId;
-        const shopCfg = activeShopId ? getShopXeroxConfig(activeShopId) : null;
-        const paperList = shopCfg ? shopCfg.paper : xeroxConfig.paper;
-        const paper = paperList.find(p => p.id === value)
-                   || xeroxConfig.paper.find(p => p.id === value);
-
-        /* Resolve options: shop overrides first, then global */
-        const shopOpts   = paper?._shopOptions || {};
-        const globalOpts = paper?.options      || {};
-        const resolveOpt = (k) => shopOpts[k] || globalOpts[k] || null;
-
-        const colorOpt  = resolveOpt('color');
-        const formatOpt = resolveOpt('format');
-        const ratioOpt  = resolveOpt('ratio');
-
-        const f = uploadedFiles[i];
-
-        /* Snap color selection — mixed needs the paper to allow both B&W and colour */
-        const colorSel = colorOpt?.selection || ['bw', 'color'];
-        const mixedOk  = f.config.color === 'mixed' && f.pages > 1;
-        if (!mixedOk && !colorSel.includes(f.config.color)) f.config.color = colorSel[0] || 'bw';
-
-        /* Snap format selection — use the panel matching the (possibly snapped) color */
-        const fmtBwSel    = formatOpt?.bw?.selection    ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-        const fmtColorSel = formatOpt?.color?.selection ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-        const activeFmt   = selectionFor(f.config.color, fmtBwSel, fmtColorSel);
-        if (!activeFmt.includes(f.config.format)) f.config.format = activeFmt[0] || 'frontOnly';
-        if (f.pages === 1) f.config.format = 'frontOnly';
-
-        /* Snap ratio selection */
-        const ratBwSel    = ratioOpt?.bw?.selection    ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-        const ratColorSel = ratioOpt?.color?.selection ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-        const activeRat   = selectionFor(f.config.color, ratBwSel, ratColorSel);
-        if (!activeRat.includes(f.config.ratio)) f.config.ratio = activeRat[0] || '1:1';
-    }
-    /* When color mode changes, also snap format and ratio to the new color panel's selections */
-    if (key === 'color') {
-        const activeShopId = selectedShopId || selectedPickerShopId;
-        const shopCfg  = activeShopId ? getShopXeroxConfig(activeShopId) : null;
-        const paperList = shopCfg ? shopCfg.paper : xeroxConfig.paper;
-        const paper = paperList.find(p => p.id === uploadedFiles[i].config.paperId)
-                   || xeroxConfig.paper.find(p => p.id === uploadedFiles[i].config.paperId);
-        const shopOpts   = paper?._shopOptions || {};
-        const globalOpts = paper?.options      || {};
-        const resolveOpt = (k) => shopOpts[k] || globalOpts[k] || null;
-        const formatOpt  = resolveOpt('format');
-        const ratioOpt   = resolveOpt('ratio');
-        const f = uploadedFiles[i];
-        const fmtBwSel    = formatOpt?.bw?.selection    ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-        const fmtColorSel = formatOpt?.color?.selection ?? formatOpt?.selection ?? ['frontOnly', 'both'];
-        const activeFmt   = selectionFor(value, fmtBwSel, fmtColorSel);
-        if (!activeFmt.includes(f.config.format)) f.config.format = activeFmt[0] || 'frontOnly';
-        if (f.pages === 1) f.config.format = 'frontOnly';
-        const ratBwSel    = ratioOpt?.bw?.selection    ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-        const ratColorSel = ratioOpt?.color?.selection ?? ratioOpt?.selection ?? ['1:1', '1:2'];
-        const activeRat   = selectionFor(value, ratBwSel, ratColorSel);
-        if (!activeRat.includes(f.config.ratio)) f.config.ratio = activeRat[0] || '1:1';
-    }
+    const f = uploadedFiles[i];
+    if (!f) return;
+    const paperNow = resolvePaper(key === 'paperId' ? value : f.config.paperId);
+    /* A colour mode this paper doesn't allow (disabled button) is ignored */
+    if (key === 'color' && !colorModesFor(paperNow, f.pages)[value]) return;
+    f.config[key] = value;
+    /* New paper or colour mode: snap colour / format / ratio to what is allowed
+       (format and ratio choices can differ between the B&W and colour panels) */
+    if (key === 'paperId' || key === 'color') snapDocOptions(f, paperNow);
     rerenderDocs();
 };
 window.updateQty = function(i, delta) {
@@ -2935,7 +3011,7 @@ function isCollegeShopSelected() {
     if (selectedPlaceType === 'college' || window.selectedPlaceType === 'college') return true;
     const shopId = selectedShopId || selectedPickerShopId;
     if (shopId) {
-        const shop = (allShops && allShops.find(s => s.id === shopId)) ||
+        const shop = shopById(shopId) ||
                      (allShopsRaw && allShopsRaw.find(s => s.id === shopId));
         if (shop && extractShopPlaceType(shop) === 'college') return true;
     }
@@ -2984,6 +3060,10 @@ window.closeMinOrderModal = function() {
     const popup    = document.getElementById('xoMinOrderPopup');
     if (backdrop) backdrop.style.display = 'none';
     if (popup)    popup.style.display    = 'none';
+    /* "Add more pages / files" from the shop step → back to the upload step */
+    const s4 = document.getElementById('xoLocStep4');
+    const overlay = document.getElementById('xoLocationOverlay');
+    if (s4 && s4.style.display !== 'none' && overlay && overlay.style.display !== 'none') window.goBackToUpload();
 };
 
 window.removeDoc = async function(i) {
@@ -3026,7 +3106,7 @@ function renderFinalSummary() {
     const isPickup = selectedOrderType === 'pickup';
     let deliveryFee = 25, threshold = 150, showNudge = !isPickup;
     if (selectedShopId) {
-        const shop  = allShops.find(s => s.id === selectedShopId);
+        const shop  = shopById(selectedShopId);
         const rules = shop?.deliveryPrices?.xerox || [];
         if (rules.length) {
             const rule = rules.find(r => subtotal >= r.min && (r.max == null || subtotal <= r.max));
@@ -3059,7 +3139,7 @@ function renderFinalSummary() {
                 <div class="xo-summary-kv-key">Paper / Color</div>
                 <div class="xo-summary-kv-val">${pName} / ${esc(colorText(cfg))}</div>
                 <div class="xo-summary-kv-key">Format / Ratio</div>
-                <div class="xo-summary-kv-val">${cfg.format === 'both' ? 'Front & Back' : 'One Side'} / ${cfg.ratio}</div>
+                <div class="xo-summary-kv-val">${cfg.format === 'both' ? 'Front & Back' : 'One Side'} / ${ratioText(cfg.ratio)}</div>
                 ${bName || lName ? `<div class="xo-summary-kv-key">Finishing</div><div class="xo-summary-kv-val">${[bName,lName].filter(Boolean).join(' + ')}</div>` : ''}
                 ${cfg.instructions ? `<div class="xo-summary-kv-key">Notes</div><div class="xo-summary-kv-val">${cfg.instructions}</div>` : ''}
             </div>
@@ -3239,7 +3319,7 @@ window.uploadFile = async function(i) {
     f.uploadStatus   = 'uploading';
     f.uploadProgress = 0;
     f.uploadIntent   = 'active';
-    renderUploadRows();
+    if (_inStep5()) renderStep5UploadRows(); else renderUploadRows();
 
     /* Signed, single-use upload link from the server (private bucket) */
     let target;
@@ -3461,7 +3541,7 @@ function renderLandingShops() {
                 <div class="xo-sc-info">
                     <div class="xo-sc-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${shop.name}</span>
-                        ${typeBadge}
+                        ${typeBadge}${distBadge(shop, false)}
                     </div>
                     <div class="xo-sc-addr">
                         <i class="fa-solid fa-location-dot"></i> ${shop.address || 'Local Center'}
@@ -3534,7 +3614,7 @@ function renderShopSelector() {
     const wrap = document.getElementById('xoShopSelector');
     if (!wrap || !uploadedFiles.length) return;
 
-    const shop = allShops.find(s => s.id === selectedShopId);
+    const shop = shopById(selectedShopId);
     const displayText = shop ? shop.name : 'Tap to select a shop';
     const hasShop = !!shop;
 
@@ -3557,24 +3637,31 @@ window.openShopModal = function() {
     const modal    = document.getElementById('shopModal');
     if (!list) return;
 
-    list.innerHTML = allShops.map(shop => {
+    /* Same choices as the wizard's shop step: nearest first, default shop when none is near */
+    const choice = nearestShopChoices();
+    const shops  = [...choice.list];
+    const cur    = shopById(selectedShopId);
+    if (cur && !shops.some(s => s.id === cur.id)) shops.unshift(cur);
+    const note = shopListNote(choice);
+
+    list.innerHTML = (note ? `<div class="xo-picker-note ${choice.isDefault ? 'xo-picker-note--warn' : ''}" style="display:flex;margin:0 0 10px;">${note}</div>` : '') + (shops.map((shop, idx) => {
         const selected = shop.id === selectedShopId;
         const xeroxRules = shop.deliveryPrices?.xerox || [];
         const freeRule   = xeroxRules.find(r => r.fee === 0);
         return `
-        <div class="xo-modal-shop-item ${selected?'selected':''}" onclick="selectShop('${shop.id}')">
+        <div class="xo-modal-shop-item ${selected?'selected':''}" onclick="selectShop('${esc(shop.id)}')">
             <div class="xo-modal-shop-icon"><i class="fa-solid fa-store"></i></div>
             <div style="flex:1;overflow:hidden;">
-                <div class="xo-modal-shop-name">${shop.name}</div>
+                <div class="xo-modal-shop-name">${h(shop.name)}${distBadge(shop, idx === 0 && !choice.isDefault && shops.length > 1)}</div>
                 <div class="xo-modal-shop-addr">
-                    <i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${shop.address||'Local Center'}
-                    ${shop.locationLink ? `<br><a href="${esc(shop.locationLink)}" target="_blank" onclick="event.stopPropagation();" style="color:var(--primary); font-weight:600; text-decoration:none; display:inline-block; margin-top:4px;"><i class="fa-solid fa-map-location-dot"></i> View on Map</a>` : ''}
+                    <i class="fa-solid fa-location-dot" style="margin-right:4px;"></i>${h(shop.address||'Local Center')}
+                    ${shop.locationLink ? `<br><a href="${h(shop.locationLink)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--primary); font-weight:600; text-decoration:none; display:inline-block; margin-top:4px;"><i class="fa-solid fa-map-location-dot"></i> View on Map</a>` : ''}
                 </div>
-                ${freeRule ? `<div class="xo-modal-shop-free"><i class="fa-solid fa-gift" style="margin-right:3px;"></i>FREE delivery above ₹${freeRule.min}</div>` : ''}
+                ${freeRule ? `<div class="xo-modal-shop-free"><i class="fa-solid fa-gift" style="margin-right:3px;"></i>FREE delivery above ₹${h(freeRule.min)}</div>` : ''}
             </div>
             <div class="xo-modal-shop-radio"></div>
         </div>`;
-    }).join('') || '<p style="text-align:center;padding:24px;font-size:.82rem;color:var(--txt3);">No active xerox shops found.</p>';
+    }).join('') || '<p style="text-align:center;padding:24px;font-size:.82rem;color:var(--txt3);">No active xerox shops found.</p>');
 
     backdrop.style.display = 'block';
     modal.style.display    = 'flex';
@@ -3588,38 +3675,34 @@ window.closeShopModal = function() {
 window.selectShop = function(id) {
     selectedShopId = id;
     closeShopModal();
-    renderFinalSummary();
+    /* The documents may use papers / finishes this shop doesn't offer */
+    const changed = fitDocsToShop(id);
+    if (changed.length) showToast(`Changed for this shop: ${h(changed.join('; '))}.`, 'info');
+    renderDocCards();
     renderShopSelector();
     renderLandingShops();
 };
 
 /* ════ VALIDATE + OPEN CHECKOUT ════ */
 window.validateAndProceed = function() {
-    if (!selectedShopId) {
-        showToast('Please select a Xerox shop first.', 'warning');
-        // Highlight the shop selector card
-        const shopCard = document.querySelector('.xo-shop-selector-card');
-        if (shopCard) {
-            shopCard.classList.add('error');
-            setTimeout(() => shopCard.classList.remove('error'), 1600);
-            shopCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+    const shop = shopById(selectedShopId);
+    if (!shop) {
+        selectedShopId = null;
+        flagField(document.querySelector('.xo-shop-selector-card'), 'Please choose a Xerox shop for your order.');
+        return;
+    }
+    if ((selectedOrderType || window.selectedOrderType) === 'delivery' && shop.homeDelivery !== true) {
+        flagField(document.querySelector('.xo-shop-selector-card'),
+            `${h(shop.name || 'This shop')} offers pickup only. Choose another shop, or change location and pick "Pick Up Myself".`);
         return;
     }
     const verified = document.getElementById('xoVerifyCheck')?.checked;
     if (!verified) {
-        showToast('Please verify your document settings first.', 'warning');
-        const blk = document.getElementById('xoVerifyBlock');
-        if (blk) {
-            blk.classList.add('error');
-            setTimeout(() => blk.classList.remove('error'), 1600);
-            blk.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        flagField(document.getElementById('xoVerifyBlock'), 'Please tick "Settings verified" after checking your document settings.');
         return;
     }
-    const pendingFiles = uploadedFiles.filter(f => f.uploadStatus === 'pending' || f.uploadStatus === 'uploading');
+    const pendingFiles = uploadedFiles.filter(isPendingUpload);
     if (pendingFiles.length > 0) {
-        showToast('Please upload or select an option for all files.', 'warning');
         // Highlight each pending upload row
         pendingFiles.forEach(f => {
             const idx  = uploadedFiles.indexOf(f);
@@ -3629,7 +3712,8 @@ window.validateAndProceed = function() {
                 setTimeout(() => row.classList.remove('error'), 1600);
             }
         });
-        document.getElementById('xoUploadRows')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        flagField(document.getElementById(`uploadRow-${uploadedFiles.indexOf(pendingFiles[0])}`) || document.getElementById('xoUploadRows'),
+            'Please upload each file, or choose "Upload Later" / WhatsApp for it.');
         return;
     }
     if (!checkDocConfigs() || !checkCollegeMinOrder()) return;
@@ -3673,7 +3757,7 @@ function renderCheckoutSummary() {
             subtotal += f.prices.final;
         });
 
-        const shop = allShops.find(s => s.id === selectedShopId);
+        const shop = shopById(selectedShopId);
         const xeroxRules = shop?.deliveryPrices?.xerox || [];
         const freeRule   = xeroxRules.find(r => r.fee === 0);
         const rule = xeroxRules.find(r => subtotal >= r.min && (r.max == null || subtotal <= r.max));
@@ -3865,8 +3949,7 @@ function renderPaymentOptions() {
     let subtotal = 0;
     uploadedFiles.forEach(f => { subtotal += f.prices.final; });
 
-    const shop = allShops.find(s => s.id === selectedShopId) ||
-                 allShopsRaw.find(s => s.id === selectedShopId) || {};
+    const shop = shopById(selectedShopId) || {};
     const isPickup = (selectedOrderType || window.selectedOrderType) === 'pickup';
     const xeroxRules = shop?.deliveryPrices?.xerox || [];
     const rule = xeroxRules.find(r => subtotal >= r.min && (r.max == null || subtotal <= r.max));
@@ -4049,12 +4132,17 @@ window.processCheckout = async function() {
     if (!checkDocConfigs() || !checkCollegeMinOrder()) return;
     const mobile = document.getElementById('coMobile')?.value;
     const alt    = document.getElementById('coAltMobile')?.value || '';
-    if (!mobile) { showToast('Please select a primary mobile number.', 'error'); return; }
+    if (!mobile) {
+        const form = document.getElementById('coNewContactForm');
+        flagField(form && form.style.display !== 'none' ? form : document.getElementById('coMobile'), 'Please add or select a primary mobile number.', 'error');
+        return;
+    }
 
     const isPickup = (selectedOrderType || window.selectedOrderType) === 'pickup';
     const address  = (userProfile.addresses || [])[selAddrIdx];
     if (!isPickup && !address) {
-        showToast('Please select or add a delivery address.', 'error');
+        const form = document.getElementById('coNewAddressForm');
+        flagField(form && form.style.display !== 'none' ? form : document.getElementById('coAddressList'), 'Please select or add a delivery address.', 'error');
         return;
     }
 
@@ -4075,8 +4163,7 @@ window.processCheckout = async function() {
         else subtotal += f.prices.final;
     });
 
-    const shop = allShops.find(s => s.id === selectedShopId) ||
-                 allShopsRaw.find(s => s.id === selectedShopId) || {};
+    const shop = shopById(selectedShopId) || {};
     const xeroxRules = shop?.deliveryPrices?.xerox || [];
     const rule       = xeroxRules.find(r => subtotal >= r.min && (r.max == null || subtotal <= r.max));
     const freeRule   = xeroxRules.find(r => r.fee === 0);
@@ -4320,7 +4407,7 @@ async function placeOrder(contacts, deliveryAddress) {
 
     try {
         const groupOrderId      = genId();
-        const shopData          = allShops.find(s => s.id === selectedShopId) || {};
+        const shopData          = shopById(selectedShopId) || {};
         const isPickupOrder     = (selectedOrderType || window.selectedOrderType) === 'pickup';
         const requiresManualEst = false;
 
@@ -4487,7 +4574,7 @@ function buildWhatsAppOrderMessage({ orderId, shopData, contacts, deliveryAddres
             `*${idx + 1}. ${d.name}*`,
             `   Pages: ${d.pages}  |  Copies: ${cfg.quantity}`,
             `   Paper: ${paper}  |  Color: ${color}`,
-            `   Format: ${format}  |  Ratio: ${cfg.ratio}`,
+            `   Format: ${format}  |  Layout: ${ratioText(cfg.ratio)}`,
         ];
         if (binding)   lines.push(`   Binding: ${binding}`);
         if (book)      lines.push(`   Bind together: file ${book.position} of ${book.size} in one book`);
@@ -4566,6 +4653,11 @@ function genId(len = 6) {
 
 function esc(s) {
     return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+/* HTML-escape text placed inside markup */
+function h(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 let toastTimer;
