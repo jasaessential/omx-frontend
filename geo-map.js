@@ -133,6 +133,9 @@ function injectStyles() {
 .gm-pin{width:22px;height:22px;border-radius:50% 50% 50% 0;background:#2563eb;border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45);transform:rotate(-45deg);}
 .gm-shop{width:16px;height:16px;border-radius:50%;background:#f59e0b;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
 .gm-shop.sel{background:#16a34a;width:20px;height:20px;}
+.gm-shop-wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+.leaflet-tooltip.gm-shop-label{padding:2px 6px;font-size:.68rem;font-weight:700;color:#1a1d23;background:rgba(255,255,255,.92);border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.2);white-space:nowrap;}
+.gm-far .leaflet-tooltip.gm-shop-label{display:none;}
 `;
     document.head.appendChild(st);
 }
@@ -265,15 +268,49 @@ export async function createMapPicker(host, opts = {}) {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
     if (autoLocate && !value) locate();
 
-    /* Other shops drawn on the map (xerox order page). list: [{lat,lng,name,selected}] */
+    /* Shop names show as labels once zoomed in (zoom >= LABEL_ZOOM); further out
+       they would cover the map, so a tap / hover on a dot shows the name instead. */
+    const LABEL_ZOOM = 15;
+    const syncLabels = () => mapEl.classList.toggle('gm-far', map.getZoom() < LABEL_ZOOM);
+    map.on('zoomend', syncLabels);
+    syncLabels();
+
+    /* Other shops drawn on the map (xerox order page). list: [{lat,lng,name,selected}]
+       Shops saved at (almost) the same spot are fanned out in a small ring, in
+       screen pixels, so every dot stays visible at any zoom; each stays anchored
+       to its real position. */
     function setShops(list = []) {
         shopLayer.clearLayers();
-        list.forEach(s => {
-            const c = shopCoords(s);
-            if (!c) return;
-            const icon = L.divIcon({ className: '', html: `<div class="gm-shop${s.selected ? ' sel' : ''}"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
-            L.marker([c.lat, c.lng], { icon, title: s.name || '' }).bindTooltip(esc(s.name || ''), { direction: 'top' }).addTo(shopLayer);
+        const pts = list.map(s => ({ s, c: shopCoords(s) })).filter(x => x.c);
+        const groups = [];
+        pts.forEach(x => {
+            const g = groups.find(g => haversineKm(g[0].c, x.c) < 0.03);   // within ~30 m
+            g ? g.push(x) : groups.push([x]);
         });
+        groups.forEach(g => g.forEach(({ s, c }, i) => {
+            const size = s.selected ? 20 : 16;
+            const r = g.length > 1 ? 13 : 0;
+            const a = (2 * Math.PI * i) / g.length - Math.PI / 2;
+            const cos = Math.cos(a), sin = Math.sin(a);
+            const dx = Math.round(r * cos), dy = Math.round(r * sin);
+            /* label points away from the group so it never covers a neighbour's dot */
+            const h = size / 2;
+            const [direction, tip] = g.length < 2 || sin < -0.7 ? ['top', [dx, dy - h]]
+                : sin > 0.7 ? ['bottom', [dx, dy + h]]
+                : cos > 0 ? ['right', [dx + h, dy]] : ['left', [dx - h, dy]];
+            const icon = L.divIcon({
+                className: '',
+                html: `<div class="gm-shop-wrap"><div class="gm-shop${s.selected ? ' sel' : ''}"></div></div>`,
+                iconSize: [size, size],
+                iconAnchor: [h - dx, h - dy],
+                tooltipAnchor: tip
+            });
+            const name = esc(s.name || s.shopName || 'Shop');
+            L.marker([c.lat, c.lng], { icon, title: s.name || '', zIndexOffset: s.selected ? 500 : 0 })
+                .bindTooltip(name, { direction, permanent: true, className: 'gm-shop-label' })
+                .bindPopup(name, { closeButton: false, offset: [dx, dy - h] })
+                .addTo(shopLayer);
+        }));
     }
 
     return {

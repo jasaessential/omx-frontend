@@ -255,6 +255,11 @@ try {
     }
 } catch (_) {}
 let locMapCtl = null;                 // map picker controller (step 1)
+/* True once the pin was set during this page visit (GPS, map tap, drag or search).
+   A pin restored from localStorage is not "fresh": opening the map then asks the
+   device for the current position instead of showing that old spot. */
+let pinFreshThisVisit = false;
+let _locating = false;
 const shopDistKm = new Map();         // shopId -> km from the pin (kept out of the shop objects/caches)
 const DEFAULT_RADIUS_KM = 10;         // a shop's delivery radius when the admin set none
 const NEARBY_RADIUS_KM  = 15;         // shops further than this from the customer are not "nearby" (pickup)
@@ -433,6 +438,7 @@ function paintPinText() {
 
 function setPin(p) {
     userPin = { lat: Math.round(p.lat * 1e5) / 1e5, lng: Math.round(p.lng * 1e5) / 1e5 };
+    pinFreshThisVisit = true;
     try { localStorage.setItem(PIN_KEY, JSON.stringify({ ...userPin, at: Date.now() })); } catch (_) {}
     paintPinText();
     refreshStep1();
@@ -451,6 +457,7 @@ function clearPin(silent) {
 window.useMyLocation = async function() {
     const btn = document.getElementById('xoUseGpsBtn');
     if (btn) btn.disabled = true;
+    _locating = true;
     try {
         const p = await getCurrentPosition();
         setPin(p);
@@ -467,9 +474,28 @@ window.useMyLocation = async function() {
         const host = document.getElementById('xoMapHost');
         if (host && host.style.display === 'none') window.toggleLocationMap();   // fall back to picking on the map
     } finally {
+        _locating = false;
         if (btn) btn.disabled = false;
     }
 };
+
+/* Opening the map: get the device's current position rather than showing a pin
+   saved on an earlier visit. Quiet on failure (the saved pin, if any, stays and
+   the customer can tap the map). A tap/drag made while waiting wins over GPS. */
+async function refreshPinOnMapOpen() {
+    if (pinFreshThisVisit || _locating) return;
+    _locating = true;
+    try {
+        const p = await getCurrentPosition();
+        if (pinFreshThisVisit) return;
+        setPin(p);
+        locMapCtl?.setValue(userPin, 17);
+        if (p.accuracy > APPROX_LOCATION_M) {
+            showToast(`Your device gave only a rough location (within about ${(p.accuracy / 1000).toFixed(1)} km). Drag the pin to your exact spot for correct distances.`, 'warning');
+        }
+    } catch (_) { /* permission denied / no fix: keep the map as it is */ }
+    finally { _locating = false; }
+}
 
 window.toggleLocationMap = async function() {
     const host = document.getElementById('xoMapHost');
@@ -490,6 +516,7 @@ window.toggleLocationMap = async function() {
     }
     /* show the xerox shops that have a pin, so customers can see what is around */
     locMapCtl.setShops(allShopsRaw.filter(s => hasCoords(s)));
+    refreshPinOnMapOpen();
 };
 
 document.addEventListener('DOMContentLoaded', () => { paintPinText(); if (userPin) refreshStep1(); });
