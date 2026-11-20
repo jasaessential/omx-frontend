@@ -952,8 +952,11 @@ window.submitItem = async function() {
         console.error('[ManageItems] submitItem:', err);
         const netErr = (err instanceof TypeError && /fetch/i.test(err.message))
             || err.name === 'TimeoutError' || err.name === 'AbortError';
+        const quota = err.code === 'resource-exhausted' || /quota/i.test(err.message || '');
         const msg = netErr
             ? 'Upload failed — your connection looks slow or unstable. Nothing was saved; please try again.'
+            : quota
+            ? 'Database daily limit reached (Firebase free plan). Saving works again after the daily reset, around 1:30 PM IST.'
             : err.message;
         toast('Error: ' + msg, 'error');
     }
