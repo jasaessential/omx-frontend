@@ -4,8 +4,9 @@
    real-time onSnapshot listeners.
    Supports xerox orders (documents[]) and
    product orders (items[]).
-   Late upload of xerox files via Supabase XHR.
+   Late upload of xerox files via signed-URL XHR (R2).
    ═══════════════════════════════════════════════ */
+import './omx-push.js';   // order notifications
 import { auth, db } from './firebase-init.js';
 import { WORKER_URL, PAYMENT_SERVER_URL } from './env-config.js';
 import { getUploadTarget } from './secure-files.js';   // signed upload / view links
@@ -31,7 +32,7 @@ async function ordersApi(path, body) {
 }
 import {
     doc, getDoc, onSnapshot, collection, getDocs
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 

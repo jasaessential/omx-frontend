@@ -13,7 +13,7 @@ import {
     doc,
     getDoc,
     updateDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 
 /* ════════════════════════════════
    COLOR — same palette as auth-header.js

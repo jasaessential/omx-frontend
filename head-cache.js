@@ -128,8 +128,9 @@
                 console.warn('[JASA-V2 SW] Registration failed:', err);
             });
 
-            // Register Firebase Messaging SW (for background push)
-            navigator.serviceWorker.register('firebase-messaging-sw.js', { updateViaCache: 'none' }).catch(function () {});
+            // Firebase Messaging SW (background push) gets its own scope: registering it on "/"
+            // as well replaced sw.js (one worker per scope). omx-push.js uses this same scope.
+            navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/firebase-cloud-messaging-push-scope', updateViaCache: 'none' }).catch(function () {});
 
             /* Background sync helper exposed globally */
             window.jasaRequestSync = function (tag) {

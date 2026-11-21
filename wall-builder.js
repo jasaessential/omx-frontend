@@ -6,17 +6,17 @@
 
    Layouts, sizes and prices: wall-layouts.js + Firestore poster_config/main
    (Poster Setup page). server/pricing.js prices the line again at checkout.
-   Photos go to the private Supabase bucket (kind 'poster').
+   Photos go to the private R2 bucket (kind 'poster').
    ═══════════════════════════════════════════════ */
 import { db, auth } from './firebase-init.js';
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc } from './cf-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getUploadTarget } from './secure-files.js';
 
 const W          = window.WallLayouts;
 const MODE       = new URLSearchParams(location.search).get('mode') === 'pack' ? 'pack' : 'wall';
 const IS_WALL    = MODE === 'wall';
-const WORKER_URL = 'https://jasa-backend-worker.jasaessential3.workers.dev';
+const WORKER_URL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8798' : 'https://jasa-backend-worker.jasaessential3.workers.dev';
 const CART_KEY   = 'jasa_cart';
 const SAVE_KEY   = `jasa_wall_${MODE}`;
 const MAX_FILE   = 50 * 1024 * 1024;

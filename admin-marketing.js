@@ -10,7 +10,7 @@ import { auth, db }         from './firebase-init.js';
 import { WORKER_URL, SERVER_URL } from './env-config.js';
 import { onAuthStateChanged }           from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { doc, getDoc, collection, getDocs }
-    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    from './cf-firestore.js';
 
 /* ── Auth headers — the Worker checks this Firebase ID token + the admin / manage_marketing role ── */
 async function authHeaders() {

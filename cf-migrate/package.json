@@ -1,0 +1,6 @@
+{
+  "name": "omx-cf-migrate",
+  "private": true,
+  "type": "module",
+  "devDependencies": { "wrangler": "4.98.0" }
+}

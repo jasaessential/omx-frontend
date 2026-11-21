@@ -10,7 +10,7 @@
    ═══════════════════════════════════════════════ */
 import { db } from './firebase-init.js';
 import { doc, onSnapshot }
-    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    from './cf-firestore.js';
 
 const VER_KEY    = cat => `jasa_v2_catver_${cat}`;
 const CACHE_KEYS = cat => [`jasa_v2_cat_${cat}`, `jasa_v2_hcat_${cat}`];

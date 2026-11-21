@@ -15,8 +15,9 @@ import { auth, db }           from './firebase-init.js';
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { doc, getDoc }
-    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    from "./cf-firestore.js";
 import { bootstrapReferral } from './referral-bootstrap.js';
+import './omx-push.js';   // order notifications (permission card + device token)
 
 /* ── Cache TTL: only re-fetch Firestore if older than 5 minutes ── */
 const USER_CACHE_TTL = 0; // no cache: re-read the profile from Firestore on every load (stored copy is only for the instant, flash-free header)
@@ -120,7 +121,7 @@ onAuthStateChanged(auth, async (user) => {
                     if (roles.includes('seller') || roles.includes('employee')) {
                         try {
                             const { collection: col, query: qry, where, getDocs: gd }
-                                = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+                                = await import('./cf-firestore.js');
                             const shopsRef = col(db, 'shops');
                             let userShops = [];
                             if (roles.includes('seller')) {

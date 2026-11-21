@@ -15,9 +15,9 @@ import { db } from './firebase-init.js';
 import { watchCatalog } from './catalog-sync.js';
 import {
     collection, query, where, limit, getDocs
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 
-const WORKER_URL = 'https://jasa-backend-worker.jasaessential3.workers.dev';
+const WORKER_URL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8798' : 'https://jasa-backend-worker.jasaessential3.workers.dev';
 
 /* ─── Section config ─── */
 const SECTIONS = [

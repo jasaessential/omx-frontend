@@ -1,78 +1,47 @@
 # How to Run JASA V2 Locally
 
-You need **two things running at the same time**:
-1. The Node.js backend server (port 3001)
-2. A frontend file server (Live Server / any static server)
+Since the move to Cloudflare (2026-11-21, see `cf/README.md`) the backend is two
+Workers plus a D1 database. On `localhost` the site automatically talks to the
+local Workers below (see `env-config.js` and `cf-firestore.js`).
 
----
-
-## Step 1 — Start the Node Backend
-
-Open a **PowerShell terminal** and run:
+Use the jasaessential3 wrangler login in every terminal (Git Bash):
 
 ```
-cd C:\Users\ELCOT\Desktop\USER\JASA-V2\server
-npm run dev
+export XDG_CONFIG_HOME="D:/SwiftMind/.wrangler-jasa"
 ```
 
-You should see:
+## 1. API worker (omx-api): data API + the old Node server routes, port 8799
+
 ```
-JASA Payment Server running on port 3001
-Mode: development (all localhost origins allowed)
+cd D:/SwiftMind/JASA-V2/JASA-V2/cf
+npx wrangler d1 execute omx-db --local --file schema.sql    # first time only
+npx wrangler dev --port 8799 --test-scheduled
 ```
 
-Keep this terminal open. Do not close it.
+Secrets for local runs go in `cf/.dev.vars` (gitignored; same names as `server/.env`).
+Local data: `cd cf-migrate && node import-d1.mjs` loads `cf-migrate/export/*.jsonl`.
 
----
+## 2. Edge worker (jasa-backend-worker): items/banners/config cache, port 8798
 
-## Step 2 — Open the Frontend
-
-Open **VS Code**, go to the `JASA-V2` folder, right-click `index.html` and click **"Open with Live Server"**.
-
-The site will open at `http://127.0.0.1:8080` (or similar).
-
-> If you don't have Live Server, install it from VS Code Extensions (`Ctrl+Shift+X` → search "Live Server" by Ritwick Dey → Install).
-
----
-
-## Step 3 — Verify It's Working
-
-Open browser DevTools (`F12`) → Console tab.
-
-You should see **no red errors**. The page loads normally with Firebase data.
-
-To double-check the backend is running, open a new PowerShell and run:
 ```
-Invoke-WebRequest http://127.0.0.1:3001/health -UseBasicParsing
+cd D:/SwiftMind/JASA-V2/JASA-V2
+npx wrangler dev --port 8798 --persist-to cf/.wrangler/state
 ```
-Expected response: `{"status":"ok","ts":...}`
 
----
+`--persist-to` makes it use the same local D1 as the API worker.
 
-## Every Time You Come Back
+## 3. The site, port 5500
 
-Just repeat Steps 1 and 2:
+```
+cd D:/SwiftMind/JASA-V2/JASA-V2
+python -m http.server 5500 --bind 127.0.0.1
+```
 
-| Terminal | Command |
-|---|---|
-| PowerShell 1 | `cd C:\Users\ELCOT\Desktop\USER\JASA-V2\server` then `npm run dev` |
-| VS Code | Right-click `index.html` → Open with Live Server |
+Open http://localhost:5500/index.html.
 
----
+## Checks
 
-## Troubleshooting
-
-| Error | Fix |
-|---|---|
-| `ERR_CONNECTION_REFUSED` on port 3001 | Backend is not running — go to Step 1 |
-| `EADDRINUSE` port 3001 already in use | Run `taskkill /F /IM node.exe` then `npm run dev` again |
-| CORS error in console | Make sure `env-config.js` has `SERVER_URL = 'http://127.0.0.1:3001'` |
-| `npm` not recognized | Close PowerShell and reopen it — Node.js PATH needs a fresh session |
-
----
-
-## When Going to Production (Cloudflare)
-
-1. Deploy the `server/` folder to Railway / Render / Cloudflare Workers
-2. Change `SERVER_URL` in `env-config.js` to your deployed server URL
-3. Push to Git → Cloudflare Pages auto-deploys the frontend
+- `curl http://127.0.0.1:8799/health` → `{"status":"ok",...,"db":"d1"}`
+- `cd cf-migrate && npm i` once, then `node test-store.mjs` (store) and `node test-api.mjs` (needs both workers running).
+- `D:/Studio/claude-seo/.venv/Scripts/python.exe cf-migrate/smoke-pages.py` loads the pages headless and lists console errors.
+- Cron (settle job): `curl "http://127.0.0.1:8799/__scheduled?cron=*/15+*+*+*+*"`

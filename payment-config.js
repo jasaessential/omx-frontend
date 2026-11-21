@@ -26,7 +26,7 @@ import { WORKER_URL, getAdminToken, initAppConfig }
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import {
     doc, getDoc, setDoc, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 /* ════ CONSTANTS ════ */
 const DEFAULT_CONFIG = {

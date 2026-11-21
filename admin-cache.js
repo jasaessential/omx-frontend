@@ -4,7 +4,7 @@
 import { auth, db }                 from './firebase-init.js';
 import { getWorkerUrl, getAdminToken } from './env-config.js';
 import { onAuthStateChanged }        from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { doc, getDoc }               from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc }               from './cf-firestore.js';
 
 /* ─────────── Auth headers ─────────── */
 async function authHeaders() {

@@ -14,7 +14,7 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/fi
 import {
     collection, getDocs, doc, getDoc,
     addDoc, updateDoc, deleteDoc, onSnapshot
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 /* ─── State ─────────────────────────────────── */
 window.activeTab = 'lamination';

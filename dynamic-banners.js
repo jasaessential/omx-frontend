@@ -9,7 +9,7 @@ import { db }         from './firebase-init.js';
 import { WORKER_URL } from './env-config.js';
 import {
     collection, getDocs, doc, getDoc, query, orderBy
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 /* ══════════════════════════════════════════════
    BANNERS
@@ -140,12 +140,14 @@ async function loadCategoryImages() {
         const fallbackIcon = key === 'xerox' ? 'copy'
             : key === 'stationary' ? 'pen-ruler'
             : key === 'books'      ? 'book-open'
+            : key === 'posters'    ? 'image'
             : 'microchip';
 
+        // Admin image failed → bundled default image → icon
         el.innerHTML = `
             <img src="${esc(url)}"
                  alt="${key}"
-                 onerror="this.parentElement.innerHTML='<i class=\\'fa-solid fa-${fallbackIcon}\\'></i>'">`;
+                 onerror="if(!this.dataset.d){this.dataset.d=1;this.src='assets/categories/${key}.webp';}else{this.parentElement.innerHTML='<i class=\\'fa-solid fa-${fallbackIcon}\\'></i>'}">`;
     });
 }
 

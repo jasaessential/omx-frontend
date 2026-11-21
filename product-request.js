@@ -14,7 +14,7 @@ import {
     collection, doc, getDoc, getDocs,
     addDoc, query, where, orderBy,
     serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 /* ── State ── */
 let currentUser   = null;

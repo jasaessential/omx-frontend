@@ -8,7 +8,7 @@
 import { PAYMENT_SERVER_URL } from './env-config.js';
 import { db } from './firebase-init.js';
 import { doc, updateDoc, serverTimestamp, increment }
-    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    from "./cf-firestore.js";
 
 const base = () => (window.__JASA_SERVER || PAYMENT_SERVER_URL).replace(/\/$/, '');
 

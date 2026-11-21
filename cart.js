@@ -9,7 +9,7 @@ import { WORKER_URL, PAYMENT_SERVER_URL } from './env-config.js';
 import {
     collection, getDocs, doc, getDoc,
     setDoc, updateDoc, serverTimestamp, increment
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { validateCoupon, redeemCoupon, releaseCoupon, calcDiscount, splitDiscount }

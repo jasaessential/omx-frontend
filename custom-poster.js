@@ -6,12 +6,12 @@
    Prices, sizes and GSM come from Firestore poster_config/main (managed in
    manage-posters.html); the server prices the order again from the same doc.
 
-   Two files go to the private Supabase bucket (same route as xerox files):
+   Two files go to the private R2 bucket (same route as xerox files):
      customPhoto   — the picture exactly as the customer chose it
      customPreview — the fitted canvas (what to print)
    ═══════════════════════════════════════════════ */
 import { db, auth } from './firebase-init.js';
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import { doc, getDoc } from './cf-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { getUploadTarget } from './secure-files.js';
 

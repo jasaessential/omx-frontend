@@ -13,7 +13,7 @@ import { db, auth } from './firebase-init.js';
 import {
     doc, getDoc,
     collection, query, where, getDocs
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { WORKER_URL } from './env-config.js';
@@ -222,7 +222,7 @@ function currentCartData() {
              customNote: document.getElementById('customNote').value.trim().slice(0, 300) };
 }
 
-/* ── Custom poster photo upload (same Supabase bucket as xerox files) ── */
+/* ── Custom poster photo upload (same private R2 bucket as xerox files) ── */
 const customPhoto = { url: '', tag: '', uploading: false };
 async function uploadCustomPhoto(file) {
     const status  = document.getElementById('customPhotoStatus');

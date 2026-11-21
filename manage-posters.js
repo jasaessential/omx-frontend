@@ -8,7 +8,7 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp }
-    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    from './cf-firestore.js';
 
 const PRESETS = [
     { name: 'A4', widthIn: 8.27,  heightIn: 11.69 },

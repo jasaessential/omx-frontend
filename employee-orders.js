@@ -10,7 +10,7 @@ import {
     collection, query, where, getDocs, getDoc,
     doc, onSnapshot, updateDoc, setDoc,
     runTransaction, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { WORKER_URL } from './env-config.js';

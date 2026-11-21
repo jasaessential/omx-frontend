@@ -7,7 +7,7 @@
 import { auth, db } from './firebase-init.js';
 import {
     doc, getDoc, getDocs, collection, query, where
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { WORKER_URL } from './env-config.js';

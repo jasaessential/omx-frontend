@@ -10,7 +10,7 @@
 import { db } from './firebase-init.js';
 import { PAYMENT_SERVER_URL } from './env-config.js';
 import { doc, getDoc }
-    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    from './cf-firestore.js';
 
 const base = () => (window.__JASA_SERVER || PAYMENT_SERVER_URL).replace(/\/$/, '');
 const num  = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };

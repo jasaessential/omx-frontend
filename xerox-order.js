@@ -4,7 +4,7 @@
      1. Upload files (PDF/image) → PDF.js page count
      2. Configure per-doc: paper, color, format,
         ratio, binding, lamination, quantity
-     3. Upload to Supabase or mark later/whatsapp
+     3. Upload to R2 (signed URL) or mark later/whatsapp
      4. Select shop → delivery fee calculation
      5. Checkout: contact + address → place order
    Firebase collections: orders, order_status, shops
@@ -16,7 +16,7 @@ import { getUploadTarget } from './secure-files.js';
 import {
     collection, getDocs, doc, getDoc, setDoc,
     updateDoc, serverTimestamp, increment, query, where
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { createMapPicker, getCurrentPosition, haversineKm, hasCoords, shopCoords, APPROX_LOCATION_M } from './geo-map.js';
@@ -1406,7 +1406,7 @@ function renderStep5Docs(shopCfg) {
 
 /**
  * renderStep5UploadRows()
- * Renders Supabase upload rows inside #xoS5UploadRows (reuses buildUploadRow).
+ * Renders upload rows inside #xoS5UploadRows (reuses buildUploadRow).
  * Row IDs use prefix s5UploadRow- so confirmLocationAndProceed can find them.
  */
 function renderStep5UploadRows() {

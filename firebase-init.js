@@ -11,7 +11,7 @@ import { getAuth, GoogleAuthProvider }
 import {
     initializeFirestore,
     memoryLocalCache
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { getAnalytics }         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
 
 const FIREBASE_CONFIG = {

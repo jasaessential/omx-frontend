@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════
    JASA V2 — secure-files.js
-   Customer files live in a private Supabase bucket. The browser never holds a
-   Supabase key: the server (routes/files.js) hands out a signed upload URL,
+   Customer files live in a private Cloudflare R2 bucket. The browser never holds a
+   storage key: the server (routes/files.js) hands out a signed upload URL,
    and opening a file asks it for a 15-minute signed link.
 
    getUploadTarget(kind, name, orderId?) → { uploadUrl, fileUrl }

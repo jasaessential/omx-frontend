@@ -24,3 +24,13 @@ node_modules/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Cloudflare migration: local secrets and Firestore data dumps (customer data)
+.dev.vars
+cf/.dev.vars
+cf-migrate/export/
+cf-migrate/*.sql
+cf-migrate/shots/
+cf-migrate/.import.wrangler.toml
+cf/.render.env
+cf/.secrets.json

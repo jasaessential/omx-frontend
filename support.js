@@ -447,7 +447,7 @@ window.submitQuery = async function() {
         /* Dynamic Firebase import so this plain script doesn't need bundling */
         const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
         const { getFirestore, collection, addDoc, serverTimestamp, query, where, orderBy, getDocs }
-            = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+            = await import('./cf-firestore.js');
         const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
         const { FIREBASE_CONFIG } = await import('./env-config.js');
 
@@ -497,7 +497,7 @@ async function loadQueryHistory() {
     try {
         const { initializeApp, getApps } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
         const { getFirestore, collection, query, where, orderBy, getDocs }
-            = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+            = await import('./cf-firestore.js');
         const { getAuth } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
         const { FIREBASE_CONFIG } = await import('./env-config.js');
 

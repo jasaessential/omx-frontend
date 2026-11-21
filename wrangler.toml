@@ -24,6 +24,12 @@ id      = "1d2b461dc30a46c396215e3811b0b28a"   # JASA_CACHE
 binding    = "PRODUCT_IMAGES"
 bucket_name = "jasa-product-images"
 
+# ── D1 database (all app data; was Firestore) — shared with cf/wrangler.toml (omx-api)
+[[d1_databases]]
+binding       = "DB"
+database_name = "omx-db"
+database_id   = "3883d84c-116b-4e7a-ac84-4d07cb053129"   # same DB as cf/wrangler.toml (omx-api)
+
 # ── Non-secret env vars ────────────────────────────────────────
 [vars]
 R2_PUBLIC_URL = "https://pub-35a590f6b24c49aba1b36086b8a5cc65.r2.dev"
@@ -41,8 +47,8 @@ FIREBASE_PROJECT_ID = "jasa-essential-234f8"              # admin ID-token check
 #   npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
 #   npx wrangler secret put R2_PUBLIC_URL          (or keep as [vars] above)
 
-# ── Cron: wallet settle + abandoned-checkout sweep on the payment server ──
-# Uses PAYMENT_SERVER_URL ([vars] above) and the secret SERVER_SECRET
-#   npx wrangler secret put SERVER_SECRET     (same value as SERVER_SECRET on Render)
+# ── Cron: none here any more. The settle job (wallet cashback, refunds, stale
+# holds, abandoned checkouts) runs in the omx-api Worker's own cron (cf/wrangler.toml).
+# An empty list removes the old 15-minute trigger on deploy.
 [triggers]
-crons = ["*/15 * * * *"]
+crons = []

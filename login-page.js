@@ -18,7 +18,7 @@ import {
     doc,
     setDoc,
     getDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 
 /** Where to go after signing in: ?redirect=<page>.html[?query] on this site, else home.
     Only plain page names are accepted, so the link can't send users elsewhere. */

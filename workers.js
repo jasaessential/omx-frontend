@@ -4,14 +4,15 @@
  * 
  * Cache Strategy: No automatic expiry - manual control via admin panel
  * 
- * Deploy to Cloudflare Workers:
- * 1. Cloudflare Dashboard → Workers → product-pagination-worker
- * 2. Delete all code, paste this entire file
- * 3. Save & Deploy
- * 4. Admin endpoints take the caller's Firebase ID token (see verifyAdmin); FIREBASE_PROJECT_ID must be set
+ * Deploy (2026-11-21 on): `npx wrangler deploy` from the repo root. This file imports
+ * ./cf/store.js (D1), so pasting it into the dashboard no longer works.
+ * Admin endpoints take the caller's Firebase ID token (see verifyAdmin); FIREBASE_PROJECT_ID must be set.
  */
 
-const FIRESTORE_DB_URL = 'https://firestore.googleapis.com/v1/projects';
+import { Store, autoId, isTs } from './cf/store.js';
+
+/* Data now lives in Cloudflare D1 (binding DB), not Firestore — see cf/store.js.
+   FirestoreService keeps its old method names so the handlers below are unchanged. */
 
 // ═════════════════════════════════════════════════════════════════
 // LOGGER SERVICE
@@ -206,352 +207,93 @@ class FCMV1Service {
 // ═════════════════════════════════════════════════════════════════
 
 class FirestoreService {
-    constructor(projectId, apiKey) {
-        this.projectId = projectId;
-        this.apiKey = apiKey;
-        this.baseUrl = `${FIRESTORE_DB_URL}/${projectId}/databases/(default)/documents`;
+    constructor(env) {
+        this.store = new Store(env.DB);
     }
 
-    // ─── Fetch ALL Items by Category (loops batches internally, returns full list) ───
-    async fetchItemsByCategory(category, _lastDocId = null, signal, fetchAll = false) {
-        const batchSize = 300; // Firestore REST safe batch size
-        let allItems = [];
-        let cursor   = null;
-        let fetchMore = true;
-
-        while (fetchMore) {
-            const structuredQuery = {
-                from:    [{ collectionId: 'items' }],
-                orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
-                // Request batchSize + 1 so we can tell whether a next page exists.
-                // NOTE: Firestore REST also appends one sentinel {} element to the response,
-                // so the actual check must count only real documents — see below.
-                limit: batchSize + 1
-            };
-
-            // Apply category filter only for single-category fetches
-            if (!fetchAll) {
-                structuredQuery.where = {
-                    fieldFilter: {
-                        field: { fieldPath: 'category' },
-                        op:    'EQUAL',
-                        value: { stringValue: category }
-                    }
-                };
-            }
-
-            // Cursor: start AFTER the last document from the previous batch
-            if (cursor) {
-                structuredQuery.startAt = {
-                    values: [{
-                        referenceValue: `projects/${this.projectId}/databases/(default)/documents/items/${cursor}`
-                    }],
-                    before: false  // exclusive cursor
-                };
-            }
-
-            try {
-                const response = await fetch(
-                    `${this.baseUrl}:runQuery?key=${this.apiKey}`,
-                    {
-                        method:  'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body:    JSON.stringify({ structuredQuery }),
-                        signal
-                    }
-                );
-
-                if (!response.ok) { fetchMore = false; break; }
-
-                const data = await response.json();
-
-                // Filter out the sentinel element ({} with no .document property)
-                const docs = data.filter(item => item.document);
-
-                // Take only up to batchSize real items
-                const batch = docs.slice(0, batchSize).map(item => ({
-                    id: item.document.name.split('/').pop(),
-                    ...this.flattenFields(item.document.fields)
-                }));
-
-                allItems = allItems.concat(batch);
-
-                // A next page exists when Firestore returned batchSize+1 real documents.
-                // Using docs.length (real docs only) avoids the off-by-one caused by
-                // the trailing sentinel that is present in every Firestore REST response.
-                if (docs.length > batchSize && batch.length === batchSize) {
-                    cursor = batch[batch.length - 1].id; // advance to next page
-                    Logger.log('FirestoreService', `Batch done, cursor → ${cursor}, total so far: ${allItems.length}`);
-                } else {
-                    fetchMore = false; // last page reached
-                }
-            } catch (error) {
-                Logger.log('FirestoreService', `Error fetching items for ${category}:`, error.message);
-                fetchMore = false;
-                if (allItems.length === 0) throw new Error(`Firestore query failed: ${error.message}`);
-                // If we already have some items, return what we have rather than failing completely
-            }
+    /* Stored timestamps ("__ts:ISO") come out as ISO strings, as the Firestore REST
+       flattening did (timestampValue). */
+    static plain(v) {
+        if (isTs(v)) return v.slice(5);
+        if (Array.isArray(v)) return v.map(FirestoreService.plain);
+        if (v && typeof v === 'object') {
+            const o = {};
+            for (const [k, x] of Object.entries(v)) o[k] = FirestoreService.plain(x);
+            return o;
         }
+        return v;
+    }
+    static flat(row) { return { id: row.id, ...FirestoreService.plain(row.data) }; }
 
-        Logger.log('FirestoreService', `Fetched ${allItems.length} items for category: ${category}`);
-        return { items: allItems, hasNextPage: false, lastDocId: null };
+    // ─── All items of one category (or every item with fetchAll) ───
+    async fetchItemsByCategory(category, _lastDocId = null, _signal, fetchAll = false) {
+        const rows = await this.store.query({
+            coll: 'items',
+            filters: fetchAll ? [] : [{ field: 'category', op: '==', value: category }],
+            orderBy: [{ field: '__name__', dir: 'asc' }],
+        });
+        const items = rows.map(FirestoreService.flat);
+        Logger.log('FirestoreService', `Fetched ${items.length} items for category: ${category}`);
+        return { items, hasNextPage: false, lastDocId: null };
     }
 
-    // ─── Fetch All Documents from a Collection ───
-    async fetchCollection(collectionId, signal) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/${collectionId}?key=${this.apiKey}`,
-                { signal }
-            );
-
-            if (!response.ok) return [];
-            const data = await response.json();
-            return this.extractDocuments(data);
-        } catch (error) {
-            Logger.log('FirestoreService', `Error fetching collection ${collectionId}:`, error.message);
-            throw error;
-        }
+    // ─── Every document of a collection ───
+    async fetchCollection(collectionId) {
+        const rows = await this.store.query({ coll: collectionId, orderBy: [{ field: '__name__', dir: 'asc' }] });
+        return rows.map(FirestoreService.flat);
     }
 
-    // ─── Fetch Xerox Configuration ───
-    async getXeroxConfig(signal) {
-        const collections = ['xerox_config_paper', 'xerox_config_binding', 'xerox_config_lamination', 'xerox_services'];
-        const results = {};
-
-        try {
-            const promises = collections.map(collectionId => this.fetchCollection(collectionId, signal));
-            const responses = await Promise.all(promises);
-
-            results.paper = responses[0];
-            results.binding = responses[1];
-            results.lamination = responses[2];
-            results.services = responses[3];
-
-            Logger.log('FirestoreService', 'Xerox config & services fetched ✓');
-            return results;
-        } catch (error) {
-            Logger.log('FirestoreService', 'Error fetching xerox config:', error.message);
-            throw error;
-        }
+    // ─── One document, flattened, or null ───
+    async getDocument(collectionId, docId) {
+        const row = await this.store.get(`${collectionId}/${docId}`);
+        return row ? FirestoreService.flat(row) : null;
     }
 
-    // ─── Fetch States, Districts, Cities (location hierarchy) ───
-    async fetchLocations(signal) {
-        try {
-            const [statesRaw, districtsRaw, citiesRaw] = await Promise.all([
-                this.fetchCollection('states',    signal),
-                this.fetchCollection('districts', signal),
-                this.fetchCollection('cities',    signal),
-            ]);
-            Logger.log('FirestoreService', `Locations fetched ✓ states:${statesRaw.length} districts:${districtsRaw.length} cities:${citiesRaw.length}`);
-            return { states: statesRaw, districts: districtsRaw, cities: citiesRaw };
-        } catch (error) {
-            Logger.log('FirestoreService', 'Error fetching locations:', error.message);
-            throw error;
-        }
+    // ─── Xerox configuration ───
+    async getXeroxConfig() {
+        const [paper, binding, lamination, services] = await Promise.all(
+            ['xerox_config_paper', 'xerox_config_binding', 'xerox_config_lamination', 'xerox_services']
+                .map(c => this.fetchCollection(c)));
+        Logger.log('FirestoreService', 'Xerox config & services fetched ✓');
+        return { paper, binding, lamination, services };
     }
 
-    // ─── Fetch All Shops ───
-    /* Every active shop (xerox, stationary, books, kits, posters…). Each page
-       keeps the shops for its own service. */
-    async fetchActiveShops(signal) {
-        try {
-            const allShops = await this.fetchCollection('shops', signal);
-            return allShops.filter(s => s.status === undefined || String(s.status).toLowerCase() === 'active');
-        } catch (error) {
-            Logger.log('FirestoreService', 'Error fetching shops:', error.message);
-            throw error;
-        }
+    // ─── States, districts, cities ───
+    async fetchLocations() {
+        const [states, districts, cities] = await Promise.all(
+            ['states', 'districts', 'cities'].map(c => this.fetchCollection(c)));
+        Logger.log('FirestoreService', `Locations fetched ✓ states:${states.length} districts:${districts.length} cities:${cities.length}`);
+        return { states, districts, cities };
     }
 
-    // ─── Parse Shop Documents ───
-    parseShops(data) {
-        if (!data) return [];
-        return data
-            .filter(item => item.document)
-            .map(item => ({
-                id: item.document.name.split('/').pop(),
-                ...this.flattenFields(item.document.fields)
-            }));
+    // ─── Active shops (every service) ───
+    async fetchActiveShops() {
+        const all = await this.fetchCollection('shops');
+        return all.filter(s => s.status === undefined || String(s.status).toLowerCase() === 'active');
     }
 
-    // ─── Parse Results (Items) ───
-    parseResults(data, pageSize) {
-        if (!data) return { items: [], hasNextPage: false, lastDocId: null };
-        
-        const docs = data.filter(item => item.document);
-        const items = docs.slice(0, pageSize).map(item => ({
-            id: item.document.name.split('/').pop(),
-            ...this.flattenFields(item.document.fields)
-        }));
-
-        let lastDocId = null;
-        if (items.length > 0) {
-            lastDocId = items[items.length - 1].id;
-        }
-
-        const hasNextPage = docs.length > pageSize;
-        return { items, hasNextPage, lastDocId };
-    }
-
-    // ─── Extract Documents from Collection ───
-    extractDocuments(response) {
-        if (!response.documents) return [];
-        return response.documents.map(doc => ({
-            id: doc.name.split('/').pop(),
-            ...this.flattenFields(doc.fields)
-        }));
-    }
-
-    // ─── Extract Array Values ───
-    extractArray(arrayField) {
-        if (!arrayField || !arrayField.arrayValue || !arrayField.arrayValue.values) return [];
-        return arrayField.arrayValue.values.map(v => this.flattenValue(v));
-    }
-
-    // ─── Parse Map Values ───
-    parseMapValue(mapField) {
-        if (!mapField || !mapField.mapValue || !mapField.mapValue.fields) return {};
-        return this.flattenFields(mapField.mapValue.fields);
-    }
-
-    // ─── Add Document to Collection ───
+    // ─── Add a document with an auto id ───
     async addDocument(collectionId, data) {
-        const body = {
-            fields: this.formatFields(data)
-        };
-
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/${collectionId}?key=${this.apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                }
-            );
-
-            if (!response.ok) throw new Error(`Add document failed: ${await response.text()}`);
-            return await response.json();
-        } catch (error) {
-            Logger.log('FirestoreService', `Error adding to ${collectionId}:`, error.message);
-            throw error;
-        }
+        const id = autoId();
+        await this.store.commit([{ op: 'create', path: `${collectionId}/${id}`, data }]);
+        return { id };
     }
 
-    // ─── Search Documents (Run Query) ───
+    // ─── First N documents of a collection (by id, like the REST runQuery did) ───
     async searchDocuments(collectionId, options = {}) {
-        const query = {
-            structuredQuery: {
-                from: [{ collectionId: collectionId }],
-                limit: options.limit || 20
-            }
-        };
-
-        if (options.where) {
-            query.structuredQuery.where = options.where;
-        }
-
-        try {
-            const response = await fetch(
-                `${this.baseUrl}:runQuery?key=${this.apiKey}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(query)
-                }
-            );
-
-            if (!response.ok) throw new Error(`Search failed: ${await response.text()}`);
-            const data = await response.json();
-            
-            // Format results
-            if (!Array.isArray(data)) return [];
-            return data
-                .filter(item => item.document)
-                .map(item => ({
-                    id: item.document.name.split('/').pop(),
-                    ...this.flattenFields(item.document.fields)
-                }));
-        } catch (error) {
-            Logger.log('FirestoreService', `Error searching ${collectionId}:`, error.message);
-            throw error;
-        }
-    }
-
-    // ─── Format Fields for Write ───
-    formatFields(data) {
-        const fields = {};
-        Object.entries(data).forEach(([key, value]) => {
-            if (typeof value === 'string') fields[key] = { stringValue: value };
-            else if (typeof value === 'number') {
-                if (Number.isInteger(value)) fields[key] = { integerValue: value.toString() };
-                else fields[key] = { doubleValue: value };
-            }
-            else if (typeof value === 'boolean') fields[key] = { booleanValue: value };
-            else if (value === null) fields[key] = { nullValue: null };
-            else if (Array.isArray(value)) {
-                fields[key] = { arrayValue: { values: value.map(v => this.formatValue(v)) } };
-            }
-            else if (typeof value === 'object') {
-                fields[key] = { mapValue: { fields: this.formatFields(value) } };
-            }
+        const rows = await this.store.query({
+            coll: collectionId,
+            orderBy: [{ field: '__name__', dir: 'asc' }],
+            limit: options.limit || 20,
         });
-        return fields;
+        return rows.map(FirestoreService.flat);
     }
 
-    formatValue(value) {
-        if (typeof value === 'string') return { stringValue: value };
-        if (typeof value === 'number') return { doubleValue: value };
-        if (typeof value === 'boolean') return { booleanValue: value };
-        return { nullValue: null };
-    }
-
-    flattenValue(value) {
-        if (!value) return null;
-        if ('stringValue' in value) return value.stringValue;
-        if ('integerValue' in value) return parseInt(value.integerValue);
-        if ('doubleValue' in value) return parseFloat(value.doubleValue);
-        if ('booleanValue' in value) return value.booleanValue;
-        if ('timestampValue' in value) return value.timestampValue;
-        if ('mapValue' in value) return this.flattenFields(value.mapValue.fields);
-        if ('arrayValue' in value) return this.extractArray(value);
-        if ('nullValue' in value) return null;
-        return null;
-    }
-
-    // ─── Flatten All Fields ───
-    flattenFields(fields) {
-        if (!fields) return {};
-        const result = {};
-        Object.entries(fields).forEach(([key, value]) => {
-            result[key] = this.flattenValue(value);
-        });
-        return result;
-    }
-
-    // ─── Delete Document ───
+    // ─── Delete one document ───
     async deleteDocument(collectionId, docId) {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/${collectionId}/${docId}?key=${this.apiKey}`,
-                {
-                    method: 'DELETE'
-                }
-            );
-
-            if (!response.ok) {
-                const error = await response.text();
-                throw new Error(`Failed to delete document: ${error}`);
-            }
-
-            Logger.log('FirestoreService', `Deleted document ${docId} from ${collectionId}`);
-            return true;
-        } catch (error) {
-            Logger.log('FirestoreService', `Error deleting document ${docId}:`, error.message);
-            throw error;
-        }
+        await this.store.commit([{ op: 'delete', path: `${collectionId}/${docId}` }]);
+        Logger.log('FirestoreService', `Deleted document ${docId} from ${collectionId}`);
+        return true;
     }
 }
 
@@ -665,7 +407,7 @@ async function handleGetItemsByCategory(request, env) {
     }
 
     try {
-        const fs         = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs         = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId  = setTimeout(() => controller.abort(), 25000);
 
@@ -716,7 +458,7 @@ async function handleGetXeroxConfig(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -759,7 +501,7 @@ async function handleGetShopsAll(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -803,7 +545,7 @@ async function handleGetLocations(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -868,17 +610,15 @@ async function handleGetData(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         let result;
         if (docId) {
             // Fetch single document
-            const response = await fetch(`${fs.baseUrl}/${collectionId}/${encodeURIComponent(docId)}?key=${fs.apiKey}`, { signal: controller.signal });
-            if (!response.ok) throw new Error(`Fetch doc ${docId} failed`);
-            const data = await response.json();
-            result = { id: docId, ...fs.flattenFields(data.fields) };
+            result = await fs.getDocument(collectionId, docId);
+            if (!result) throw new Error(`Fetch doc ${docId} failed`);
         } else {
             // Fetch entire collection
             result = await fs.fetchCollection(collectionId, controller.signal);
@@ -925,7 +665,7 @@ async function handleSendNotification(request, env) {
         
         // Log to Firestore History
         try {
-            const firestore = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+            const firestore = new FirestoreService(env);
             await firestore.addDocument('sent_notifications', {
                 title,
                 body,
@@ -1010,7 +750,7 @@ async function handleSendPushAll(request, env) {
 
         // Log to Firestore History
         try {
-            const firestore = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+            const firestore = new FirestoreService(env);
             await firestore.addDocument('sent_notifications', {
                 title,
                 body,
@@ -1125,14 +865,13 @@ async function verifyFirebaseIdToken(token, projectId) {
     }
 }
 
-/** Roles on users/{uid}, read with the caller's own token */
-async function userRoles(uid, idToken, projectId) {
-    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${encodeURIComponent(uid)}`,
-        { headers: { Authorization: `Bearer ${idToken}` } });
-    if (!res.ok) return [];
-    const f = (await res.json()).fields || {};
-    const list = f.roles?.arrayValue?.values?.map(v => v.stringValue).filter(Boolean);
-    return list?.length ? list : [f.role?.stringValue || 'user'];
+/** Roles on users/{uid} (D1) */
+async function userRoles(uid, env) {
+    const row = await new Store(env.DB).get(`users/${uid}`);
+    if (!row) return [];
+    const d = row.data || {};
+    const list = Array.isArray(d.roles) ? d.roles.filter(Boolean) : [];
+    return list.length ? list : [d.role || 'user'];
 }
 
 /**
@@ -1144,7 +883,7 @@ async function verifyAdmin(request, env, allowed = ['admin', 'manage_items']) {
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     const claims = await verifyFirebaseIdToken(token, env.FIREBASE_PROJECT_ID);
     if (!claims) return false;
-    const roles = await userRoles(claims.sub, token, env.FIREBASE_PROJECT_ID);
+    const roles = await userRoles(claims.sub, env);
     return roles.some(r => allowed.includes(r));
 }
 
@@ -1333,7 +1072,7 @@ async function handleCacheRefresh(request, env) {
         const category = (body.category && body.category !== 'all') ? body.category : null;
         const v = '2.2';
 
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId  = setTimeout(() => controller.abort(), 30000);
 
@@ -1678,7 +1417,7 @@ async function handleGetHistory(request, env) {
     if (request.method !== 'GET') return new Response('Method Not Allowed', { status: 405 });
 
     try {
-        const firestore = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const firestore = new FirestoreService(env);
         // Fetch up to 10 recent notifications
         const result = await firestore.searchDocuments('sent_notifications', {
             limit: 10
@@ -1706,7 +1445,7 @@ async function handleDeleteHistory(request, env) {
         const docId = url.searchParams.get('id');
         const deleteAll = url.searchParams.get('all') === 'true';
 
-        const firestore = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const firestore = new FirestoreService(env);
 
         if (deleteAll) {
             // Delete all notification history
@@ -1931,24 +1670,13 @@ async function handleGetBanners(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        // Fetch site_banners collection
-        const response = await fetch(
-            `${fs.baseUrl}/site_banners?key=${fs.apiKey}`,
-            { signal: controller.signal }
-        );
+        // site_banners collection
+        const docs = await fs.fetchCollection('site_banners');
         clearTimeout(timeoutId);
-
-        if (!response.ok) throw new Error(`Firestore fetch failed: ${response.status}`);
-
-        const data = await response.json();
-        const docs = (data.documents || []).map(doc => ({
-            id: doc.name.split('/').pop(),
-            ...fs.flattenFields(doc.fields)
-        }));
 
         // Filter active, sort by order
         const banners = docs
@@ -2017,17 +1745,14 @@ async function handleGetSiteConfig(request, env) {
     }
 
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const response = await fetch(
-            `${fs.baseUrl}/site_config/category_images?key=${fs.apiKey}`,
-            { signal: controller.signal }
-        );
+        const doc = await fs.getDocument('site_config', 'category_images');
         clearTimeout(timeoutId);
 
-        if (!response.ok) {
+        if (!doc) {
             // Doc may not exist yet — return empty config
             return new Response(JSON.stringify({ config: {}, source: 'firestore' }), {
                 status: 200,
@@ -2035,8 +1760,7 @@ async function handleGetSiteConfig(request, env) {
             });
         }
 
-        const data = await response.json();
-        const config = fs.flattenFields(data.fields || {});
+        const { id: _id, ...config } = doc;
 
         await CacheService.set(env, SITE_CONFIG_CACHE_KEY, config);
 
@@ -2260,20 +1984,17 @@ async function handleGetPaymentConfig(request, env) {
 
     // ── KV miss — fetch from Firestore and warm the cache ────────────────────
     try {
-        const fs = new FirestoreService(env.FIREBASE_PROJECT_ID, env.FIREBASE_API_KEY);
+        const fs = new FirestoreService(env);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const response = await fetch(
-            `${fs.baseUrl}/config/payment?key=${fs.apiKey}`,
-            { signal: controller.signal }
-        );
+        const doc = await fs.getDocument('config', 'payment');
         clearTimeout(timeoutId);
 
         let config;
-        if (response.ok) {
-            const data = await response.json();
-            config = fs.flattenFields(data.fields || {});
+        if (doc) {
+            const { id: _id, ...rest } = doc;
+            config = rest;
         } else {
             // Document doesn't exist yet — safe defaults
             // onlineDepositPercent defaults to 30 so partial_online is usable immediately

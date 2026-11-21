@@ -10,11 +10,11 @@ import { db, auth } from './firebase-init.js';
 import { watchCatalog } from './catalog-sync.js';
 import {
     collection, query, where, getDocs, doc, getDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./cf-firestore.js";
 import { onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const WORKER_URL = 'https://jasa-backend-worker.jasaessential3.workers.dev';
+const WORKER_URL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8798' : 'https://jasa-backend-worker.jasaessential3.workers.dev';
 
 /* ── Track auth state ── */
 let currentUser = null;

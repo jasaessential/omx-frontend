@@ -8,7 +8,7 @@ import {
     collection, addDoc, getDocs, query, where,
     updateDoc, doc, deleteDoc, setDoc, getDoc,
     arrayUnion, arrayRemove, writeBatch
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 /* ════════════════════════════════
    CATEGORY CONFIG

@@ -1,0 +1,41 @@
+# ═══════════════════════════════════════════════════════════════════
+# OMX API Worker — replaces the Render server + Firestore (see api.js)
+#
+#   cd cf
+#   npx wrangler d1 execute omx-db --remote --file schema.sql   (once)
+#   npx wrangler deploy
+#
+# Secrets (same values as Render had):
+#   RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET RAZORPAY_WEBHOOK_SECRET SERVER_SECRET
+#   FIREBASE_SERVICE_ACCOUNT (whole JSON — push notifications)
+#   SUPABASE_SERVICE_ROLE_KEY  R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+# ═══════════════════════════════════════════════════════════════════
+name                = "omx-api"
+main                = "api.js"
+compatibility_date  = "2025-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding       = "DB"
+database_name = "omx-db"
+database_id   = "3883d84c-116b-4e7a-ac84-4d07cb053129"
+
+# server/*.js keeps requiring these; Workers get stand-ins
+[alias]
+"firebase-admin" = "./shims/firebase-admin.js"
+"razorpay"       = "./shims/razorpay.cjs"
+"dotenv"         = "./shims/dotenv.js"
+"iconv-lite"     = "./shims/iconv-lite.cjs"
+
+[vars]
+NODE_ENV            = "production"
+FIREBASE_PROJECT_ID = "jasa-essential-234f8"
+# Copy orders etc. the OLD Play app still writes to Firestore (cf/bridge.js). Remove once users have updated.
+BRIDGE_FIRESTORE    = "1"
+ALLOWED_ORIGINS     = "https://ordermyxerox.com,https://www.ordermyxerox.com,https://ordermyxerox.pages.dev,https://jasaessentials.com,https://jasajasa12345.pages.dev,https://ordermyxeroxdemo.pages.dev"
+
+[triggers]
+crons = ["*/5 * * * *"]   # bridge every 5 min, settle every 15 (api.js)
+
+[observability]
+enabled = true

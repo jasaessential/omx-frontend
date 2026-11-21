@@ -8,10 +8,11 @@
    RAZORPAY keys) never appear in this file.
    ═══════════════════════════════════════════════ */
 
-// ── Switch this to your deployed URL when going to production ──
-// Production:  'https://server-bc02.onrender.com'
-// Local dev:   'http://127.0.0.1:3001'
-export const SERVER_URL = 'https://server-bc02.onrender.com';
+// ── API server: the omx-api Cloudflare Worker (cf/) — replaced Render + Firestore ──
+// On localhost the site talks to the local Workers (cd cf && npx wrangler dev --port 8799,
+// and the edge worker on 8798) — see HOW-TO-RUN-LOCALLY.md.
+const _LOCAL = typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+export const SERVER_URL = _LOCAL ? 'http://127.0.0.1:8799' : 'https://omx-api.jasaessential3.workers.dev';
 
 /* Convenience alias used by cart.js / payment flow */
 export const PAYMENT_SERVER_URL = SERVER_URL;
@@ -105,7 +106,7 @@ export const FIREBASE_CONFIG   = new Proxy({}, {
 export const CLOUDINARY_CONFIG = new Proxy({}, {
     get: (_, key) => _get(`cloudinary.${key}`)
 });
-/* No Supabase config: customer files go through secure-files.js (signed URLs). */
+/* No storage keys in the browser: customer files go through secure-files.js (signed URLs). */
 export const R2_CONFIG         = new Proxy({}, {
     get: (_, key) => _get(`r2.${key}`)
 });
@@ -117,7 +118,7 @@ Object.defineProperty(window, 'WORKER_URL_SYNC', {
 });
 
 /* ── WORKER_URL — hardcoded, always available instantly ── */
-export const WORKER_URL = 'https://jasa-backend-worker.jasaessential3.workers.dev';
+export const WORKER_URL = _LOCAL ? 'http://127.0.0.1:8798' : 'https://jasa-backend-worker.jasaessential3.workers.dev';
 
 /* ── Legacy exports kept for compatibility ── */
 export function getWorkerUrlSync() { return WORKER_URL; }

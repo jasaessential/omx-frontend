@@ -9,7 +9,7 @@ import { listFiles, deleteFiles } from './secure-files.js';   // private bucket,
 import {
     collection, getDocs, doc, getDoc, deleteDoc,
     getCountFromServer, writeBatch, setDoc
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
@@ -22,7 +22,7 @@ let clSelected  = new Set();
 let clFilter    = 'all';
 const CL_FREE_BYTES = 25 * 1024 * 1024 * 1024; // 25 GB
 
-// Storage (Supabase)
+// Storage (Cloudflare R2, private bucket)
 let stFiles    = [];
 let stSelected = new Set();
 const MAX_ST_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
@@ -545,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ══════════════════════════════════════════════
-   STORAGE MODULE (Supabase)
+   STORAGE MODULE (Cloudflare R2)
    ══════════════════════════════════════════════ */
 async function loadStorage() {
     stSelected.clear();
@@ -651,7 +651,7 @@ window.refreshSt = async function() { await loadStorage(); };
 
 window.deleteSelectedSt = async function() {
     const count = stSelected.size;
-    const ok = await confirm(`Delete ${count} file${count !== 1 ? 's' : ''}?`, 'Permanently removes from Supabase Storage. This cannot be undone.');
+    const ok = await confirm(`Delete ${count} file${count !== 1 ? 's' : ''}?`, 'Permanently removes from file storage. This cannot be undone.');
     if (!ok) return;
 
     const btn = document.getElementById('stBulkDel');
@@ -866,7 +866,7 @@ window.deleteSelectedR2 = async function() {
         deletedKeys.forEach(key => {
             const fid = key.replace(/\//g, '__');
             import('./firebase-init.js').then(({ db: _db }) => {
-                import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js')
+                import('./cf-firestore.js')
                     .then(({ doc: _doc, deleteDoc: _del }) => _del(_doc(_db, 'r2_images', fid)).catch(() => {}));
             });
         });

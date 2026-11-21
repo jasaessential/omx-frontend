@@ -6,7 +6,7 @@ import { auth, db } from './firebase-init.js';
 import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, limit, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 
 let allCoupons = [];

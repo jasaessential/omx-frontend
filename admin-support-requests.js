@@ -10,7 +10,7 @@ import { onAuthStateChanged }  from 'https://www.gstatic.com/firebasejs/10.8.0/f
 import {
     collection, doc, getDoc, getDocs, deleteDoc,
     updateDoc, query, orderBy, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+} from './cf-firestore.js';
 
 let allQueries        = [];
 let currentFilter     = 'all';

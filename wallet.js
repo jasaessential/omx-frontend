@@ -6,7 +6,7 @@
 import { auth, db } from './firebase-init.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
 import { collection, doc, getDoc, getDocs, query, orderBy, limit }
-    from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    from './cf-firestore.js';
 import { loadWalletConfig, syncWallet, inr, SOURCE_LABEL } from './wallet-client.js';
 
 

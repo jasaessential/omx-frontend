@@ -27,9 +27,12 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function(payload) {
     console.log('[FCM SW] Background message:', payload);
 
-    var title = (payload.notification && payload.notification.title) || 'Order My Xerox';
-    var body  = (payload.notification && payload.notification.body)  || '';
-    var url   = (payload.data && payload.data.url) || 'index.html';
+    /* Order pushes from the omx-api Worker are data-only (title/body/url/tag/kind
+       in data); marketing pushes carry a notification block. */
+    var data  = payload.data || {};
+    var title = data.title || (payload.notification && payload.notification.title) || 'Order My Xerox';
+    var body  = data.body  || (payload.notification && payload.notification.body)  || '';
+    var url   = data.url || 'index.html';
     var image = (payload.notification && payload.notification.image)
              || (payload.data && payload.data.image)
              || null;
@@ -40,8 +43,9 @@ messaging.onBackgroundMessage(function(payload) {
         badge:   'assets/icons/android/launchericon-96x96.png',
         data:    { url: url },
         vibrate: [200, 100, 200],
-        tag:     'jasa-fcm',
-        renotify: true
+        tag:     data.tag || 'jasa-fcm',
+        renotify: true,
+        requireInteraction: data.kind === 'new_order'   // staff: stays until tapped
     };
     if (image) opts.image = image;
 
